@@ -23,3 +23,4 @@ install_skill() {
 
 install_skill amazon-category-analysis
 install_skill amazon-review-voc-analysis-v2
+install_skill amazon-listing-v2
