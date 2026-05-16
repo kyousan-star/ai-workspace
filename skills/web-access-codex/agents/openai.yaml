@@ -1,0 +1,4 @@
+interface:
+  display_name: "Web Access Codex"
+  short_description: "Isolated CDP web access for Codex tasks."
+  default_prompt: "Use isolated web access for a login-required or dynamic web task."
