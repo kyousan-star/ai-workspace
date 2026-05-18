@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+    "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.lihuan.us20asin-competitor-radar</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/zsh</string>
+        <string>/Users/lihuan/Documents/跨境业务/美国亚马逊业务运营/us 20 asin listing每周监控/20asin competitor radar/run_competitor_radar.sh</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/lihuan/Documents/跨境业务/美国亚马逊业务运营/us 20 asin listing每周监控/20asin competitor radar</string>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key>
+        <integer>4</integer>
+        <key>Hour</key>
+        <integer>4</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/lihuan/Documents/跨境业务/美国亚马逊业务运营/us 20 asin listing每周监控/20asin competitor radar/data/logs/competitor_radar.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/lihuan/Documents/跨境业务/美国亚马逊业务运营/us 20 asin listing每周监控/20asin competitor radar/data/logs/competitor_radar_error.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/Library/Frameworks/Python.framework/Versions/3.14/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>HOME</key>
+        <string>/Users/lihuan</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <false/>
+</dict>
+</plist>

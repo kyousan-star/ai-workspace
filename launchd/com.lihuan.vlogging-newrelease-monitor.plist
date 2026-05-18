@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.lihuan.vlogging-newrelease-monitor</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Library/Frameworks/Python.framework/Versions/3.14/bin/python3</string>
+        <string>/Users/lihuan/Documents/跨境业务/美国亚马逊业务运营/us vlogging kit new release榜单监控/new_release_monitor.py</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/lihuan/Documents/跨境业务/美国亚马逊业务运营/us vlogging kit new release榜单监控</string>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>22</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/lihuan/Documents/跨境业务/美国亚马逊业务运营/us vlogging kit new release榜单监控/monitor.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/lihuan/Documents/跨境业务/美国亚马逊业务运营/us vlogging kit new release榜单监控/monitor.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/Library/Frameworks/Python.framework/Versions/3.14/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>HOME</key>
+        <string>/Users/lihuan</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <false/>
+</dict>
+</plist>

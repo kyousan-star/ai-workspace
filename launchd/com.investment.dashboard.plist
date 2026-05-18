@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.investment.dashboard</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Library/Frameworks/Python.framework/Versions/3.14/bin/python3</string>
+        <string>-c</string>
+        <string>import sys; sys.path.insert(0, '/Users/lihuan/Documents/学习提升/AI/Qoder/炒股'); from dashboard.app import app; app.run(debug=False, host='0.0.0.0', port=5001)</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/lihuan/Documents/学习提升/AI/Qoder/炒股</string>
+
+    <!-- 登录时自动启动 -->
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- 崩溃后自动重启 -->
+    <key>KeepAlive</key>
+    <true/>
+
+    <!-- 日志输出 -->
+    <key>StandardOutPath</key>
+    <string>/tmp/investment-dashboard.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/investment-dashboard.err</string>
+</dict>
+</plist>

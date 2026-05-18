@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+    "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.lihuan.creator-economy-radar</string>
+
+    <!-- 运行时序：周一 23:00 ET，与 Vlogging Kit 周报同日晚间运行 -->
+    <!-- 当前机器时区：America/New_York，Hour 直接等于 ET -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Library/Frameworks/Python.framework/Versions/3.14/bin/python3</string>
+        <string>/Users/lihuan/Documents/跨境业务/美国亚马逊业务运营/social_media_voc/reddit-scraper/shared/creator_economy_engine.py</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/lihuan/Documents/跨境业务/美国亚马逊业务运营/social_media_voc/reddit-scraper</string>
+
+    <!-- 每周一 23:00 ET -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key>
+        <integer>1</integer>
+        <key>Hour</key>
+        <integer>23</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/lihuan/Documents/跨境业务/美国亚马逊业务运营/social_media_voc/reddit-scraper/logs/creator_economy.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/lihuan/Documents/跨境业务/美国亚马逊业务运营/social_media_voc/reddit-scraper/logs/creator_economy.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/Library/Frameworks/Python.framework/Versions/3.14/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>HOME</key>
+        <string>/Users/lihuan</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <false/>
+</dict>
+</plist>

@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+    "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.lihuan.reddit-vlogging-weekly</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Library/Frameworks/Python.framework/Versions/3.14/bin/python3</string>
+        <string>/Users/lihuan/Documents/跨境业务/美国亚马逊业务运营/social_media_voc/reddit-scraper/vlogging-kit/reddit_fetcher.py</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/lihuan/Documents/跨境业务/美国亚马逊业务运营/social_media_voc/reddit-scraper/vlogging-kit</string>
+
+    <!-- 每周一 01:30 ET（tripod 23:00 启动约 45min 完成，留 2.5h 缓冲） -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key>
+        <integer>1</integer>
+        <key>Hour</key>
+        <integer>1</integer>
+        <key>Minute</key>
+        <integer>30</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/lihuan/Documents/跨境业务/美国亚马逊业务运营/social_media_voc/reddit-scraper/logs/vlogging_kit_launchd_stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/lihuan/Documents/跨境业务/美国亚马逊业务运营/social_media_voc/reddit-scraper/logs/vlogging_kit_launchd_stderr.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/Users/lihuan/.nvm/versions/node/v22.22.0/bin:/Library/Frameworks/Python.framework/Versions/3.14/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>HOME</key>
+        <string>/Users/lihuan</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <false/>
+</dict>
+</plist>
