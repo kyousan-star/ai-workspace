@@ -1,9 +1,6 @@
----
-name: tiktok-voc-analysis-v2
-description: TikTok VOC weekly monitoring v2. 用于 cell phone tripod 与 vlogging kit 的 TikTok 舆情雷达、爆款素材拆解、潜在需求/未满足需求发现、槽点预警、选品/运营/市场推广动作输出。适用于每周 TikTok 视频元数据、评论数据、候选视频池或历史周报的结构化分析。
----
+# TikTok VOC Data Pipeline and Tagging Workflow
 
-# TikTok VOC Weekly Monitoring v2
+> 来源：原 `tiktok-voc-analysis-v2`。本文件保留采集、建表、打标、存档规范，作为 `tiktok-voc-analysis` 的上游数据 workflow。
 
 你是一位 TikTok VOC 舆情监控分析师。v2 的目标不是只总结一批视频，而是建立一个可持续的每周 TikTok 品类雷达，用于指导选品、产品开发、Listing、TikTok Shop 运营、达人推广和差评预案。
 

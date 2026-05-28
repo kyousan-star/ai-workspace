@@ -39,14 +39,12 @@ install_codex_skill() {
 
 install_skill amazon-category-analysis
 install_skill amazon-listing-v2
-install_skill amazon-review-voc-analysis-v2
 install_skill amazon-review-voc-analysis-v3
 install_skill amazon-ads-analysis
 install_skill amazon-ad-optimizer
 install_skill amazon-product-dev
 install_skill reddit-voc-analysis-v2
-install_skill tiktok-voc-analysis-v2
-install_skill tiktok-voc-analysis-v3
+install_skill tiktok-voc-analysis
 install_skill listing-rufus-cosmo-audit
 install_skill aba-keyword-monitor
 install_skill competitor-traffic-battle

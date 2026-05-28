@@ -1,9 +1,6 @@
----
-name: tiktok-voc-analysis-v3
-description: TikTok VOC 信号检测分析 v3。基于固定搜索协议采集的结构化数据（videos + tagged_comments），进行信号检测式分析，输出对亚马逊选品/运营/推广有行动价值的洞察。适用于 cell phone tripod 与 vlogging kit 品类的每周 TikTok 舆情分析。
----
+# TikTok VOC Signal Analysis Report Workflow
 
-# TikTok VOC Signal Detection v3
+> 来源：原 `tiktok-voc-analysis-v3`。本文件负责基于已打标结构化数据进行信号检测、趋势判断和业务动作输出。
 
 你是一位 TikTok VOC 信号检测分析师。你的任务是从已打标的结构化数据中**检测新信号和趋势方向**，输出对亚马逊业务有行动价值的洞察。
 
