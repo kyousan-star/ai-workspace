@@ -1,0 +1,19 @@
+{
+  "name": "amazon-image-toolkit",
+  "version": "0.1.0",
+  "description": "Amazon产品图全流程工作流: 竞品分析 → 规划方案 → 出图后质量检查 → 跨图一致性核查。沉淀实战迭代经验，让下一个新品规划从3小时压缩到15分钟。",
+  "author": {
+    "name": "kyousan-star",
+    "url": "https://github.com/kyousan-star/ai-workspace"
+  },
+  "homepage": "https://github.com/kyousan-star/ai-workspace/tree/main/amazon-image-toolkit",
+  "repository": "https://github.com/kyousan-star/ai-workspace",
+  "license": "MIT",
+  "keywords": [
+    "amazon",
+    "product-image",
+    "ai-image-generation",
+    "ecommerce",
+    "listing"
+  ]
+}
