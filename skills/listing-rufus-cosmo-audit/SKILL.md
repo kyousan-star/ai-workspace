@@ -92,7 +92,7 @@ description: Amazon Listing Rufus/COSMO 契合度审计 Skill。对已完成的 
 | used for | 用于什么场景/人群 | "for vlogging, travel, desk setup" | |
 | cause | 带来什么结果/用户收益 | "keeps shots steady without blur" | |
 
-4 类关系全部在 Title + 5 Bullets 中覆盖：满分。缺一类扣 1.5 分，缺两类扣 3 分。
+每类覆盖 = 1 分，部分覆盖 = 0.5 分，缺失 = 0 分。**Layer A 满分 4 分。**
 
 **Layer B — 5W1H 产品完整性检查**
 
@@ -105,9 +105,9 @@ description: Amazon Listing Rufus/COSMO 契合度审计 Skill。对已完成的 
 | HOW | 使用方式/安装/操作是否说明？ | |
 | WHAT'S INCLUDED | 包装内容是否列出？ | |
 
-每项：完全覆盖 = 1 分，部分 = 0.5 分，缺失 = 0 分（共 6 分）。
+每项：完全覆盖 = 1 分，部分 = 0.5 分，缺失 = 0 分。**Layer B 满分 6 分。**
 
-**最终 Dimension 2 得分** = Layer A 分（满分 6）+ Layer B 分（满分 4），合计 10 分。
+**最终 Dimension 2 得分** = Layer A 分（满分 4）+ Layer B 分（满分 6），合计 10 分。
 
 ---
 
@@ -232,14 +232,15 @@ description: Amazon Listing Rufus/COSMO 契合度审计 Skill。对已完成的 
 
 ## Dimension 2：Semantic Completeness — [X/10]
 
-### Layer A — COSMO 4 类语义关系
+### Layer A — COSMO 4 类语义关系（满分 4 分）
 
-| 语义关系 | 状态 | 证据（引用 listing 原文） |
+| 语义关系 | 得分 | 证据（引用 listing 原文） |
 |----------|------|--------------------------|
-| isA | 覆盖/缺失 | ... |
-| capable of | 覆盖/缺失 | ... |
-| used for | 覆盖/缺失 | ... |
-| cause | 覆盖/缺失 | ... |
+| isA | 1 / 0.5 / 0 | ... |
+| capable of | 1 / 0.5 / 0 | ... |
+| used for | 1 / 0.5 / 0 | ... |
+| cause | 1 / 0.5 / 0 | ... |
+| **小计** | X/4 | |
 
 ### Layer B — 5W1H 完整性
 
@@ -350,3 +351,32 @@ description: Amazon Listing Rufus/COSMO 契合度审计 Skill。对已完成的 
 5. 如未提供 Backend Search Terms，在 Dimension 3 的 ST 检查栏标注"未提供，建议提交后补充审计"。
 6. 如未提供本品属性，Dimension 3 的数值一致性检查栏标注"无法核查——建议提供本品属性重新审计"。
 7. 加权总分计算：每个维度得分 × 权重后相加，保留一位小数。
+8. 报告末尾必须输出"→ listing-v2 重写入口"模块（见下方格式），将审计 gap 结构化为 listing-v2 可直接使用的输入。
+
+---
+
+## 审计结果 → listing-v2 重写入口
+
+审计完成后，在报告最后附加以下模块，方便用户直接衔接 amazon-listing-v2 skill 进行定向重写：
+
+```markdown
+## 如需重写：交给 amazon-listing-v2 的 Gap 清单
+
+> 将以下内容连同本品属性一起提供给 amazon-listing-v2 skill，
+> 说明"这是一次基于审计的定向重写"，listing-v2 会优先解决这些问题。
+
+### 必须修复的缺口（按优先级）
+1. [D1 缺口] 以下买家问题 listing 无法回答：...
+2. [D2 缺口] COSMO 语义缺失：...（具体是哪类）
+3. [D3 缺口] 缺少以下关键参数：...
+4. [D4 缺口] 关键词堆砌问题集中在：...（引用原文位置）
+5. [D5 缺口] 合规风险词需删除：...
+
+### 可保留的亮点（不需要重写的部分）
+- [字段名]：[具体内容]，建议保留原文
+
+### 数据补充建议（listing-v2 需要但本次审计缺失的输入）
+- [ ] 本品属性 / Product Fact Bank（用于 D3 数值核查 + 重写）
+- [ ] 实际 Rufus/QA 问题素材（用于 D1 测试，提升得分上限至 10 分）
+- [ ] 竞品 Listing（用于 Parity/Gap 分析）
+```
