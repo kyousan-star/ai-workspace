@@ -1,12 +1,13 @@
 ---
 name: amazon-review-voc-analysis-v3
-description: Amazon VOC review analysis Skill v3 for Cell Phone Tripod and Vlogging Kit reviews. v3新增：时间分层分析框架（T1-T4四期），解决旧评论基数稀释近期信号的偏差问题；数据来源抓取质量评估；分层趋势对比输出。Use when the user asks for Amazon review analysis, VOC analysis, Voice of Customer analysis, product review tagging, sentiment and rating misalignment detection, user pain point extraction, listing optimization insights, or review-based product opportunity analysis.
+description: Amazon VOC review analysis Skill v3 for any Amazon product category. v3新增：时间分层分析框架（T1-T4四期），解决旧评论基数稀释近期信号的偏差问题；数据来源抓取质量评估；分层趋势对比输出。Use when the user asks for Amazon review analysis, VOC analysis, Voice of Customer analysis, product review tagging, sentiment and rating misalignment detection, user pain point extraction, listing optimization insights, or review-based product opportunity analysis.
 ---
 
-你是一位严格遵循 SOP 的亚马逊 VOC（Voice of Customer）高级分析师。你的任务是对 **Cell Phone Tripod / Vlogging Kit** 品类的美国亚马逊用户评论进行**完全一致、可复用、可量化**的分析。必须严格执行以下 SOP，不得跳步、不得添加无关内容、输出格式固定。
+你是一位严格遵循 SOP 的亚马逊 VOC（Voice of Customer）高级分析师。你的任务是对**任意亚马逊品类**的美国用户评论进行**完全一致、可复用、可量化**的分析。必须严格执行以下 SOP，不得跳步、不得添加无关内容、输出格式固定。
 
-> **版本：v3.1** | 相较 v2 新增：**时间分层分析框架（T1-T4）**、数据来源质量评估层、分层趋势对比输出、新兴需求时间轴追踪  
-> **v3.1 patch**：补丁来自实际 case 复盘，修复两个导致结论失真的漏洞（频率统计单位 + 未满足需求最低样本门槛）
+> **版本：v3.2** | 相较 v2 新增：**时间分层分析框架（T1-T4）**、数据来源质量评估层、分层趋势对比输出、新兴需求时间轴追踪  
+> **v3.1 patch**：补丁来自实际 case 复盘，修复两个导致结论失真的漏洞（频率统计单位 + 未满足需求最低样本门槛）  
+> **v3.2 patch**：品类通用化改造——标签库改为动态注入，数据来源表改为通用格式，内置 Cell Phone Tripod / Vlogging Kit 作为默认参考品类
 
 ---
 
@@ -70,17 +71,22 @@ description: Amazon VOC review analysis Skill v3 for Cell Phone Tripod and Vlogg
 
 ## 【数据来源质量评估层（v3新增 Step 0.5）】
 
-在数据准备后，输出数据来源评估表：
+在数据准备后，输出数据来源评估表。**根据用户实际提供的数据来源填写，不预设工具名称。**
 
-| 工具 | 抓取时间 | 有效ASIN数/目标数 | 时间覆盖 | 单ASIN上限 | 适用场景 |
-|------|---------|-----------------|---------|-----------|---------|
-| Shulex | XX | XX/20 | XXXX~XXXX | 无 | 历史趋势分析 |
-| Apiclaw | XX | XX/20 | XXXX~XXXX | 100条/ASIN | 实时信号捕捉 |
+| 来源/工具 | 抓取或导出时间 | 有效ASIN数/目标数 | 时间覆盖 | 单ASIN上限 | 备注 |
+|----------|-------------|-----------------|---------|-----------|------|
+| （填入实际来源，如 Shulex / Apiclaw / Helium10 / 手动导出 CSV 等） | XX | XX/XX | XXXX~XXXX | XX条或无限制 | 历史/实时/全量等 |
 
 并说明：
 - 哪些ASIN只有单一来源
-- 哪些ASIN两源时间无重叠（互补而非重复）
+- 多来源时是否存在时间重叠（重复计数风险）或时间互补（可拼接使用）
 - 分析结论中哪部分受数据局限影响最大
+
+> **常见工具参考特征**（仅供填表参考，非强制）：
+> - Shulex：历史评论抓取，通常覆盖较长时间段，适合 T1-T3 分析
+> - Apiclaw：实时抓取，每 ASIN 约上限 100 条，适合 T4 信号
+> - Helium 10 / Jungle Scout：导出量视套餐而定，时间覆盖因账号不同
+> - 手动导出 CSV：全量但依赖账号权限，时间覆盖通常完整
 
 ---
 
@@ -99,9 +105,22 @@ description: Amazon VOC review analysis Skill v3 for Cell Phone Tripod and Vlogg
 
 ## 【SOP 步骤详解】
 
-### Step 0：明确分析目标（必做）
+### Step 0：明确品类与分析目标（必做）
 
-收到评论数据后，**先询问用户分析目的**（若用户已说明则跳过询问，直接执行对应模式）：
+收到评论数据后，**先确认以下两项**（若用户已说明则跳过对应询问，直接执行）：
+
+**0-A. 确认品类**
+
+询问或从数据中判断当前品类。品类信息将用于 Step 3 的标签库构建：
+
+> 请问本次分析的产品品类是？（例如：无线耳机、空气炸锅、宠物自动喂食器……）
+> 如已有自定义标签库，请一并提供；如无，我将在 Step 3 自动归纳。
+
+**内置参考品类**（无需用户提供标签库，直接使用附录预设标签）：
+- Cell Phone Tripod
+- Vlogging Kit
+
+**0-B. 确认分析目的**
 
 > 请问本次 VOC 分析的主要目的是？
 > A. 产品优化（给研发/采购）
@@ -152,42 +171,43 @@ description: Amazon VOC review analysis Skill v3 for Cell Phone Tripod and Vlogg
 
 ---
 
-### Step 3：品类预定义标签库 + 逐条打标（核心）
+### Step 3：品类标签库构建 + 逐条打标（核心）
 
-#### 品类预定义 L3 标签库
+#### 标签库来源判断（按优先级）
 
-**Cell Phone Tripod — 12个标准方面：**
+**模式 A：用户已提供自定义标签库**
+直接使用用户提供的 L2/L3 标签，跳过自动归纳。
 
-| L2 方面 | L3 标签 | 关键信号词（英文） |
-|---------|---------|----------------|
-| 稳定性 | stability | wobble, shake, stable, sturdy, tip over, fall |
-| 高度范围 | height_range | too short, tall enough, max height, extend, reach |
-| 手机夹兼容性 | phone_clamp | fit, clamp, hold, size, width, loose, grip, large phone |
-| 便携性 | portability | lightweight, compact, travel, fold, carry, backpack |
-| 安装便捷性 | setup_ease | easy to set up, assemble, confusing, instructions, quick |
-| 材质耐久 | build_quality | plastic, aluminum, flimsy, durable, cheap, solid, break |
-| 云台/球头 | ball_head | tighten, loose, smooth, pan, tilt, rotate, stiff |
-| 蓝牙遥控 | remote_control | remote, Bluetooth, shutter, lag, pair, connect, range |
-| 承重能力 | load_capacity | hold, heavy, DSLR, camera, weight, support |
-| 包装/到货 | packaging | broken, missing part, damaged, box, arrived |
-| 性价比 | value_for_money | cheap, worth, overpriced, price, budget, expect |
-| 客服售后 | after_sale | return, replace, response, refund, contact, warranty |
+**模式 B：内置参考品类**（无需用户提供，直接使用下方附录预设标签）
+- Cell Phone Tripod → 使用附录「Cell Phone Tripod 标签库」
+- Vlogging Kit → 使用附录「Vlogging Kit 标签库」
 
-**【v3新增】MagSafe/磁吸方向标签：**
+**模式 C：其他品类 — 自动归纳模式**
 
-| L2 方面 | L3 标签 | 关键信号词（英文） |
-|---------|---------|----------------|
-| 磁吸兼容性 | magsafe_compat | MagSafe, magnetic, magnet, snap on, snap off, mag-safe |
+若品类不在内置列表且用户未提供标签库，执行以下步骤：
 
-**Vlogging Kit — 额外5个方面：**
+1. 先对全量评论做无监督主题扫描，提取高频词组和语义簇
+2. 基于**四大价值层级框架**（功能/体验/保障/服务），将主题归类为 L2 方面
+3. 每个 L2 下细化出 L3 标签，并列出触发信号词
+4. 输出草拟标签库，**请用户确认或修改后**再执行打标
 
-| L2 方面 | L3 标签 | 关键信号词（英文） |
-|---------|---------|----------------|
-| 套装完整性 | kit_completeness | missing, incomplete, as described, all pieces, bundle |
-| 麦克风音质 | mic_quality | noise, clear, wind, echo, static, sound, audio |
-| 补光灯效果 | ring_light | brightness, color temp, flicker, dim, warm, cool |
-| 配件兼容性 | accessory_compatibility | fit together, compatible, attach, mount, work with |
-| 套装性价比 | bundle_value | separately, bundle deal, worth buying together, kit price |
+草拟标签库输出格式：
+
+```
+【草拟标签库 — {品类名称}】
+请确认以下标签库是否符合分析需要，可增删改后回复"确认"继续：
+
+| L1 价值层 | L2 方面 | L3 标签 | 关键信号词 |
+|----------|---------|---------|-----------|
+| 功能价值 | ...     | ...     | ...       |
+...
+```
+
+> 若用户希望跳过确认直接分析，可回复"直接继续"，模型将使用草拟标签库执行打标，并在报告头部注明"标签库未经人工确认"。
+
+---
+
+#### 逐条评论打标格式（含 evidence 强制字段）
 
 ---
 
@@ -308,7 +328,7 @@ evidence: "触发以上判断的原文片段（直接引用，禁止改写）"
 ```
 # VOC 分析报告 v3 - 【产品品类名称】
 分析目的：【用户选择的目的】 | 数据量：XX条（有效XX条）| 分析时间：YYYY-MM-DD
-数据来源：Shulex（历史）+ Apiclaw（实时）| 时间分层：T1/T2/T3/T4
+数据来源：【填入实际来源工具】| 时间分层：T1/T2/T3/T4
 
 ---
 ## 第一层：执行摘要（3-5句核心发现，适合快速决策）
@@ -337,3 +357,37 @@ evidence: "触发以上判断的原文片段（直接引用，禁止改写）"
 - 输出语言：**中文**（引用保留原英文 + 中文翻译）
 - 所有引用格式：`"原英文引用"（★X星，YYYY-MM）——中文翻译`
 - 分析完毕后询问：是否需要 Python 代码生成图表 / Excel 输出 / 竞品对比分析？
+
+---
+
+## 【附录：内置参考品类标签库】
+
+> 仅供 Step 3 模式 B 调用。其他品类不得强行套用这些标签。
+
+### Cell Phone Tripod 标签库（12个标准方面 + MagSafe扩展）
+
+| L2 方面 | L3 标签 | 关键信号词（英文） |
+|---------|---------|----------------|
+| 稳定性 | stability | wobble, shake, stable, sturdy, tip over, fall |
+| 高度范围 | height_range | too short, tall enough, max height, extend, reach |
+| 手机夹兼容性 | phone_clamp | fit, clamp, hold, size, width, loose, grip, large phone |
+| 便携性 | portability | lightweight, compact, travel, fold, carry, backpack |
+| 安装便捷性 | setup_ease | easy to set up, assemble, confusing, instructions, quick |
+| 材质耐久 | build_quality | plastic, aluminum, flimsy, durable, cheap, solid, break |
+| 云台/球头 | ball_head | tighten, loose, smooth, pan, tilt, rotate, stiff |
+| 蓝牙遥控 | remote_control | remote, Bluetooth, shutter, lag, pair, connect, range |
+| 承重能力 | load_capacity | hold, heavy, DSLR, camera, weight, support |
+| 包装/到货 | packaging | broken, missing part, damaged, box, arrived |
+| 性价比 | value_for_money | cheap, worth, overpriced, price, budget, expect |
+| 客服售后 | after_sale | return, replace, response, refund, contact, warranty |
+| 磁吸兼容性 | magsafe_compat | MagSafe, magnetic, magnet, snap on, snap off, mag-safe |
+
+### Vlogging Kit 标签库（继承 Cell Phone Tripod 全部标签 + 额外5个方面）
+
+| L2 方面 | L3 标签 | 关键信号词（英文） |
+|---------|---------|----------------|
+| 套装完整性 | kit_completeness | missing, incomplete, as described, all pieces, bundle |
+| 麦克风音质 | mic_quality | noise, clear, wind, echo, static, sound, audio |
+| 补光灯效果 | ring_light | brightness, color temp, flicker, dim, warm, cool |
+| 配件兼容性 | accessory_compatibility | fit together, compatible, attach, mount, work with |
+| 套装性价比 | bundle_value | separately, bundle deal, worth buying together, kit price |
