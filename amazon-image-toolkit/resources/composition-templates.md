@@ -341,6 +341,194 @@ Main headline overlaid at top center.
 
 ---
 
+## 模板 T09 · 产品存在感型（v2新增）
+
+**设计问题**：如何让产品不是"被展示"，而是主动进入用户视觉空间？
+
+**核心机制**：产品占据画面最强视觉位置，制造"它正在向你靠近"的感知，而非"你在看它"。
+
+**适用判断**（按产品类型选实现手法）：
+
+| 产品类型 | 推荐手法 | 不适用 |
+|----------|----------|--------|
+| 小型手持品（美妆/配件/手机周边） | 广角前伸：模特把产品递向极前景，广角畸变放大 | 大件家具 |
+| 有纹理/材质卖点的产品 | 极限近景：产品局部特写占满画面，纹理肉眼可见 | 需要展示尺寸比例的产品 |
+| 需要传递强存在感的任何产品 | 产品占画面70-80%+戏剧性单侧打光，几乎无背景 | 场景感是核心卖点时 |
+
+**主标题套路**：动词+状态（不描述功能，描述感觉）
+- "Made to Be Held."
+- "This Close to Perfect."
+- "Take It."
+
+**关键约束**：
+1. 产品必须是绝对主角，模特（如有）退到情绪配角
+2. 广角前伸手法：`extreme wide-angle lens distortion, product pushed toward camera in extreme foreground, model's arm extending product toward lens` — 不要用普通焦段
+3. 极限近景手法：不要试图展示产品全貌，只展示最有质感的局部
+4. 产品形态描述必须与 unified form 一致，不因构图变化而漂移
+
+**Prompt 骨架（广角前伸版）**：
+```
+[Amazon secondary image, 1600x2000, text overlay at top]
+
+Extreme close-up hero shot with dramatic wide-angle lens distortion.
+
+HERO PRODUCT: [产品完整描述] extended toward the camera in the 
+extreme foreground, appearing 2-3x larger than real scale. The 
+product surface occupies the bottom 60% of the frame.
+
+BACKGROUND: [模特/手] holds the product from behind, arm slightly 
+visible in soft-focus mid-ground. Expression: confident, natural.
+
+DEPTH EFFECT: strong near-far perspective compression — product 
+sharp and large, background soft and receding.
+
+COLOR: [品牌色/背景色] gradient backdrop, no busy elements.
+
+STRICTLY AVOID: [标准禁止项列表]
+```
+
+**Prompt 骨架（极限近景版）**：
+```
+[Amazon secondary image, 1600x2000, text overlay at top]
+
+Extreme macro close-up of [产品最有质感的部位: 旋钮/织物/金属边框/按键].
+
+The [部位] fills 70-80% of the entire frame. [纹理细节描述: e.g. 
+matte aluminum grain visible at microscopic level / stitching 
+pattern clearly defined]. 
+
+Shot on Sony A7 with 90mm macro lens, f/2.8. Shallow depth of field.
+
+STRICTLY AVOID: [标准禁止项列表]
+```
+
+**已验证案例**：新模板，尚未在真实项目中验证
+
+---
+
+## 模板 T10 · 反差感型（v2新增）
+
+**设计问题**：如何让用户第一眼觉得"这张图有点不一样"，停下来多看一秒？
+
+**核心机制**：品类刻板印象 × 反向情绪元素 = 画面张力
+
+**公式步骤**：
+1. 定义该产品给用户的"第一印象关键词"（如：游戏椅=电竞/硬核/男性）
+2. 找一个方向相反但逻辑合理的情绪元素（如：猫=柔软/慵懒/家庭感）
+3. 验证合理性：这个元素出现在产品旁边，用户会觉得自然还是突兀？
+4. 确认它能把用户引向产品正面卖点（反差要服务于卖点，不是为反差而反差）
+
+**品类刻板印象参考**：
+
+| 品类 | 刻板印象词 | 可用反向元素 |
+|------|-----------|-------------|
+| 电竞/游戏外设 | 硬核/机械/男性/冷 | 猫/儿童/鲜花/针织毯 |
+| 工具类 | 粗犷/专业/脏/力量 | 儿童空间/精致厨房/女性独立感 |
+| 收纳类 | 极简/冷静/秩序 | 孩子的贴纸/宠物零食/五颜六色的小混乱 |
+| 按摩仪/保健品 | 放松/慵懒/松弛 | 高跟鞋/西装/职场压力痕迹 |
+| 户外/运动装备 | 粗犷/体能/挑战 | 宠物/家人/温馨仪式感 |
+
+**主标题套路**：揭示隐藏的一面
+- "Tougher Than It Looks. Softer Than You Think."
+- "For the One Who Does It All."
+- "Work Hard. Rest Right."
+
+**关键约束**：
+1. 反差元素必须"合理但意外"——猫趴椅子合理，猫靠近刀片不合理
+2. 产品仍然是主角，反差元素是配角（用户记住猫但忘了椅子=失败）
+3. 反差要服务于某个具体卖点（舒适/易用/适合全家/情绪价值），不是随机加元素
+4. 用户画像要提前做（什么人会觉得这个反差有共鸣？）
+
+**Prompt 骨架**：
+```
+[Amazon secondary image, 1600x2000, text overlay at top]
+
+Scene: [具体场景描述，融合产品的刻板环境和反向情绪元素]
+
+HERO PRODUCT: [产品完整描述] as the clear visual anchor.
+
+CONTRAST ELEMENT: [反向情绪元素] naturally present in the scene — 
+[描述它如何与产品形成视觉对比: e.g. soft fur against hard plastic / 
+delicate flowers beside matte metal].
+
+The contrast creates a visual question: [用户会产生的疑问, e.g. 
+"Why is there a cat on a gaming chair? → Must be comfortable enough 
+for even a cat to claim it."]
+
+LIGHTING: [场景光线，建议暖光以软化刻板印象]
+
+STRICTLY AVOID: [反差元素的边界红线: NO dangerous juxtapositions, 
+NO confused product role, NO model that outshines the product]
+```
+
+**已验证案例**：新模板，参考来源：西西酱《亚马逊图片别做得太正经》游戏椅+猫案例
+
+---
+
+## 模板 T11 · 焦虑场景叙事型（v2新增）
+
+**设计问题**：如何让用户不只是"知道"产品能解决问题，而是"感受到"这个问题？
+
+**核心机制**：先让用户感受到危险/痛点/风险，再让产品出场解决它。上半部分是钩子，下半部分是证明。
+
+**适用产品**：任何解决具体痛点/风险的产品（防护、安全、便携、防丢、防漏、防摔……）
+
+**叙事结构**：
+```
+上半部分（60%）：危机场景可视化
+  ├── 一个用户真实会担心的瞬间（不是泛泛的"问题"）
+  ├── 短视频钩子式文案（5字以内，有反问/反转/冲突感）
+  └── 场景有足够的情绪张力，让用户停下来
+
+下半部分（40%）：产品结构证明
+  ├── 产品本体 + 关键结构标注（为什么它能解决上面的问题）
+  └── 让用户从感性回到理性（"原来它真的能保护我"）
+```
+
+**主标题套路**：反问式+反击式
+- "Snatch This? Not Today."
+- "Drop It? Never Again."
+- "Soaked? Not a Chance."
+- "Lost? Already Found."
+
+**关键约束**：
+1. 危机场景必须是用户**真实会担心的**，不能是夸张到失真的（抢手机合理，被闪电劈不合理）
+2. 钩子文案必须极短、口语化、有情绪——长文案=失去钩子效果
+3. 上半部分情绪越强，下半部分结构证明就越重要（防止显得只是吓人）
+4. 产品形态标注要对应实物（引线指向真实存在的结构，不能乱画）
+
+**Prompt 骨架**：
+```
+[Amazon secondary image, 1600x2000]
+
+UPPER 60% — CRISIS SCENE:
+[具体危机场景描述: e.g. busy street, a hand reaching from behind 
+toward a phone, motion blur suggesting urgency]
+
+LARGE TEXT OVERLAY at top: "[钩子文案, e.g. 'Snatch This?']"
+SECONDARY TEXT: "[反击, e.g. 'Not Today.']"
+
+Strong cinematic lighting. High emotional tension. The viewer feels 
+the risk immediately.
+
+LOWER 40% — PRODUCT PROOF:
+[产品完整描述] shown in clean isolated view.
+THREE thin annotation lines pointing to key structural elements:
+  → "[关键结构1, e.g. reinforced anchor pad]"
+  → "[关键结构2, e.g. stainless steel loop]"
+  → "[关键结构3, e.g. quick-release buckle]"
+
+Calm neutral background for lower section (contrast with tense 
+upper section).
+
+STRICTLY AVOID: unrealistic danger scenes, product detached from 
+the crisis narrative, annotation lines pointing to non-existent parts
+```
+
+**已验证案例**：新模板，参考来源：西西酱《从一张手机挂绳图》Snatch This? Not Today 案例
+
+---
+
 ## 附录：如何贡献新模板
 
 发现一种新的"卖点→构图"配对？请按以下格式追加：

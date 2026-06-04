@@ -48,4 +48,5 @@ install_skill tiktok-voc-analysis
 install_skill listing-rufus-cosmo-audit
 install_skill aba-keyword-monitor
 install_skill competitor-traffic-battle
+install_skill amazon-image-planner-v2
 install_codex_skill web-access-codex
