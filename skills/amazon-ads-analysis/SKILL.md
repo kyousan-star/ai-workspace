@@ -1,6 +1,8 @@
 ---
 name: amazon-ads-analysis
 description: 分析亚马逊Sponsored Products广告报表，进行多报表交叉分析、ACOS/ROAS诊断、搜索词效率分析、时段优化、内卷检测。用于广告优化、广告分析、ACOS诊断、ROAS提升、否定词挖掘、加投词筛选等场景。
+last_verified: 2026-06-03
+staleness_risk: medium
 ---
 
 # 亚马逊SP广告分析 (Amazon Sponsored Products Analysis)
@@ -255,3 +257,11 @@ hourly['ROAS'] = hourly['Sales'] / hourly['Spend']
 ## 十、相关资源
 
 - 分析报告示例: [ST102_广告深度分析报告.md](../../ST102_广告深度分析报告.md)
+
+---
+
+## 【数据溯源 Footer - 每份报告必须输出】
+
+每份分析报告的最末行必须输出以下溯源行（单行，不可省略，不可移到报告中间）：
+
+> 📊 数据溯源｜时间范围：[从数据中提取的起止日期，YYYY-MM ~ YYYY-MM，无法确定时填"未知"]｜来源：[工具或平台名，如 Shulex / ABA后台 / Helium10 / 用户上传CSV 等]｜分析日期：[执行本次分析的日期 YYYY-MM-DD]

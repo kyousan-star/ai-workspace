@@ -7,6 +7,21 @@
 - 此仓库是所有资产的唯一源头，不直接修改 `~/.codex/skills/`
 - prompts/、sops/、workflows/、briefs/ 是共享资产目录，内容对所有 agent 可见
 
+## Skill 健康检查（自动执行）
+
+每次调用任何 skill 前，读取其 SKILL.md frontmatter 中的 `last_verified` 和 `staleness_risk`，按以下规则判断：
+
+| staleness_risk | 超过天数触发警告 |
+|---------------|---------------|
+| high | 60 天 |
+| medium | 90 天 |
+| low | 180 天 |
+
+超过阈值时，在执行 skill 前输出一行提示：
+> ⚠️ [skill名] 上次验证于 YYYY-MM-DD（已 N 天），staleness_risk: high/medium/low。Amazon 规则可能已变，建议确认后继续。是否继续？
+
+用户确认后正常执行。若未设置 `last_verified`，视为需要立即提示。
+
 ## Codex 专用 Skill
 
 `web-access-codex` 仅部署到 `~/.codex/skills/`，不影响 Claude。

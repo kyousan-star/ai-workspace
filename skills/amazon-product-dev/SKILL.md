@@ -12,6 +12,8 @@ description: >
   或上传了市场分析PDF/数据要求做产品可行性判断时，必须触发此技能。
   即使用户只问了其中一个维度（如"帮我看看美国这个品类的CPC"），也应触发并提示用户
   是否需要完整的多维度分析。
+last_verified: 2026-06-03
+staleness_risk: medium
 ---
 
 # 亚马逊产品开发决策分析框架 (Amazon Product Development Decision Framework)

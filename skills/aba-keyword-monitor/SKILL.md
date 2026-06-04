@@ -2,6 +2,8 @@
 name: general-ABA-keyword-monitor
 description: 亚马逊 ABA 爆品关键词监测系统（通用版），支持任意类目，从 AMZ123 热搜词榜单自动发现潜力爆发关键词并生成分析报告
 inclusion: manual
+last_verified: 2026-06-03
+staleness_risk: medium
 ---
 
 # 亚马逊 ABA 爆品关键词监测系统（通用版）
@@ -98,3 +100,11 @@ python general-ABAkeyword-monitor/main.py step3
 完成 analysis_output.json 写入后，必须立即运行 step3 生成最终 HTML 报告。
 报告输出到 `reports/{category}_monitor_YYYY-WXX-时间戳.html`。
 生成后告知用户报告文件路径。
+
+---
+
+## 【数据溯源 Footer - 每份报告必须输出】
+
+每份分析报告的最末行必须输出以下溯源行（单行，不可省略，不可移到报告中间）：
+
+> 📊 数据溯源｜时间范围：[从数据中提取的起止日期，YYYY-MM ~ YYYY-MM，无法确定时填"未知"]｜来源：[工具或平台名，如 Shulex / ABA后台 / Helium10 / 用户上传CSV 等]｜分析日期：[执行本次分析的日期 YYYY-MM-DD]

@@ -1,6 +1,8 @@
 ---
 name: amazon-review-voc-analysis-v3
 description: Amazon VOC review analysis Skill v3 for any Amazon product category. v3新增：时间分层分析框架（T1-T4四期），解决旧评论基数稀释近期信号的偏差问题；数据来源抓取质量评估；分层趋势对比输出。Use when the user asks for Amazon review analysis, VOC analysis, Voice of Customer analysis, product review tagging, sentiment and rating misalignment detection, user pain point extraction, listing optimization insights, or review-based product opportunity analysis.
+last_verified: 2026-06-03
+staleness_risk: medium
 ---
 
 你是一位严格遵循 SOP 的亚马逊 VOC（Voice of Customer）高级分析师。你的任务是对**任意亚马逊品类**的美国用户评论进行**完全一致、可复用、可量化**的分析。必须严格执行以下 SOP，不得跳步、不得添加无关内容、输出格式固定。
@@ -391,3 +393,11 @@ evidence: "触发以上判断的原文片段（直接引用，禁止改写）"
 | 补光灯效果 | ring_light | brightness, color temp, flicker, dim, warm, cool |
 | 配件兼容性 | accessory_compatibility | fit together, compatible, attach, mount, work with |
 | 套装性价比 | bundle_value | separately, bundle deal, worth buying together, kit price |
+
+---
+
+## 【数据溯源 Footer - 每份报告必须输出】
+
+每份分析报告的最末行必须输出以下溯源行（单行，不可省略，不可移到报告中间）：
+
+> 📊 数据溯源｜时间范围：[从数据中提取的起止日期，YYYY-MM ~ YYYY-MM，无法确定时填"未知"]｜来源：[工具或平台名，如 Shulex / ABA后台 / Helium10 / 用户上传CSV 等]｜分析日期：[执行本次分析的日期 YYYY-MM-DD]

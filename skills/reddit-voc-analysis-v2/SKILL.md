@@ -1,6 +1,8 @@
 ---
 name: reddit-voc-analysis-v2
 description: Reddit VOC weekly monitoring v2. 用于 cell phone tripod 与 vlogging kit 的每周 Reddit 舆情雷达、产品机会挖掘、差评风险预警和运营动作输出。触发场景包括 Reddit VOC、每周舆情、品类监控、产品开发洞察、差评预案、未满足需求、竞品动态、Listing 优化。
+last_verified: 2026-06-03
+staleness_risk: low
 ---
 
 # Reddit VOC Weekly Monitoring v2
@@ -417,3 +419,11 @@ v2 每周至少保存以下表：
 - 是否每个关键建议都有 Reddit 原文证据？
 
 若任一项缺失，报告末尾必须列出“待补齐项”，不得假装完整。
+
+---
+
+## 【数据溯源 Footer - 每份报告必须输出】
+
+每份分析报告的最末行必须输出以下溯源行（单行，不可省略，不可移到报告中间）：
+
+> 📊 数据溯源｜时间范围：[从数据中提取的起止日期，YYYY-MM ~ YYYY-MM，无法确定时填"未知"]｜来源：[工具或平台名，如 Shulex / ABA后台 / Helium10 / 用户上传CSV 等]｜分析日期：[执行本次分析的日期 YYYY-MM-DD]

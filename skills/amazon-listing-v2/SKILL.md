@@ -1,6 +1,8 @@
 ---
 name: amazon-listing-v2
 description: Amazon Listing 撰写全流程 Skill（v2）。当用户需要为任何亚马逊品类撰写或优化 Listing 时触发，包括：资料完整度判断、产品事实库、竞品关键词分析、卖点提炼、Parity/Gap 市场格局、Rufus/COSMO 语义映射、A9 关键词布局、英文 Title/Bullets/Description/Search Terms 撰写、QA 回答库、合规与事实审计。当用户提到"写listing"、"撰写listing"、"listing优化"、"写标题五点"、"listing文案"时使用此 skill。
+last_verified: 2026-06-03
+staleness_risk: high
 ---
 
 # Amazon Listing 撰写 Skill（v2）

@@ -1,6 +1,8 @@
 ---
 name: tiktok-voc-analysis
 description: TikTok VOC analysis for Cell Phone Tripod and Vlogging Kit. Use when the user asks for TikTok VOC monitoring, weekly or biweekly TikTok signal radar, TikTok review/comment analysis, short-video demand signals, content hook analysis, TikTok Shop conversion blockers, product opportunity discovery, or operating risk alerts.
+last_verified: 2026-06-03
+staleness_risk: low
 ---
 
 # TikTok VOC Analysis
@@ -55,3 +57,11 @@ description: TikTok VOC analysis for Cell Phone Tripod and Vlogging Kit. Use whe
 - 输出语言：中文。
 - 结论标注来源：`【数据】`、`【推断】`、`【风险】`、`【机会】`。
 - 报告必须回答：这个 TikTok 信号对亚马逊选品、Listing、TikTok Shop 运营或推广动作意味着什么。
+
+---
+
+## 【数据溯源 Footer - 每份报告必须输出】
+
+每份分析报告的最末行必须输出以下溯源行（单行，不可省略，不可移到报告中间）：
+
+> 📊 数据溯源｜时间范围：[从数据中提取的起止日期，YYYY-MM ~ YYYY-MM，无法确定时填"未知"]｜来源：[工具或平台名，如 Shulex / ABA后台 / Helium10 / 用户上传CSV 等]｜分析日期：[执行本次分析的日期 YYYY-MM-DD]
