@@ -1,12 +1,28 @@
 ---
 name: general-ABA-keyword-monitor
-description: 亚马逊 ABA 爆品关键词监测系统（通用版），支持任意类目，从 AMZ123 热搜词榜单自动发现潜力爆发关键词并生成分析报告
+description: 从 AMZ123 热搜词榜单监测亚马逊 ABA 爆品关键词、发现潜力爆发词时触发。触发词：ABA关键词监测、ABA爆品词、关键词爆发监测、热搜词分析、AMZ123榜单。需要 Sorftime MCP 和 Python 3.8+。输出 HTML 关键词分析报告。手动调用（inclusion: manual），不自动触发。
 inclusion: manual
 last_verified: 2026-06-03
 staleness_risk: medium
 ---
 
 # 亚马逊 ABA 爆品关键词监测系统（通用版）
+
+## IPO 契约
+
+**INPUT**
+- 目标类目名称（如"宠物用品"、"保健品"）
+- 前提：已配置 Sorftime MCP，Python 3.8+ 环境
+
+**OUTPUT**
+- 首次运行：类目词典初始化（dict_draft.json）
+- 日常运行：HTML 关键词分析报告，含 Tier 1 爆品词 + 赛道聚类 + 分析摘要 + 数据溯源 Footer
+
+**运行模式：**
+- 首次：`init` → 确认词典 → `init-confirm`
+- 日常：`step1` → LLM分类 → `step2` → `step3`（必须执行）
+
+---
 
 ## 概述
 
