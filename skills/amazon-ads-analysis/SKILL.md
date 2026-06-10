@@ -1,6 +1,6 @@
 ---
 name: amazon-ads-analysis
-description: 分析亚马逊Sponsored Products广告报表，进行多报表交叉分析、ACOS/ROAS诊断、搜索词效率分析、时段优化、内卷检测。用于广告优化、广告分析、ACOS诊断、ROAS提升、否定词挖掘、加投词筛选等场景。
+description: 上传SP广告报表文件做快速交叉分析时触发。触发词：SP广告报表分析、搜索词报告、ACOS/ROAS诊断、否定词挖掘、加投词筛选、广告与自然流量内卷、分时竞价。适用于已有报表文件、只需快速读数和诊断的场景。不适用于：需要完整广告优化SOP和执行方案（用 amazon-ad-optimizer）；分析竞品广告数据（用 competitor-traffic-battle）。
 last_verified: 2026-06-03
 staleness_risk: medium
 ---
