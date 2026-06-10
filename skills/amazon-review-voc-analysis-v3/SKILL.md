@@ -1,6 +1,6 @@
 ---
 name: amazon-review-voc-analysis-v3
-description: Amazon VOC review analysis Skill v3 for any Amazon product category. v3新增：时间分层分析框架（T1-T4四期），解决旧评论基数稀释近期信号的偏差问题；数据来源抓取质量评估；分层趋势对比输出。Use when the user asks for Amazon review analysis, VOC analysis, Voice of Customer analysis, product review tagging, sentiment and rating misalignment detection, user pain point extraction, listing optimization insights, or review-based product opportunity analysis.
+description: 分析亚马逊评论/VOC数据时触发。触发词：评论分析、VOC分析、用户痛点、review分析、差评分析、评论打标、情感分析、listing优化洞察、产品机会挖掘。支持任意品类，上传评论数据即可启动。v3新增时间分层框架（T1-T4四期），解决旧评论稀释近期信号问题。不适用于：Reddit舆情（用 reddit-voc-analysis-v2）；TikTok评论（用 tiktok-voc-analysis）。
 last_verified: 2026-06-03
 staleness_risk: medium
 ---

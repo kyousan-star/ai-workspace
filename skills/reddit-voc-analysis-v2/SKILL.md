@@ -1,6 +1,6 @@
 ---
 name: reddit-voc-analysis-v2
-description: Reddit VOC weekly monitoring v2. 用于 cell phone tripod 与 vlogging kit 的每周 Reddit 舆情雷达、产品机会挖掘、差评风险预警和运营动作输出。触发场景包括 Reddit VOC、每周舆情、品类监控、产品开发洞察、差评预案、未满足需求、竞品动态、Listing 优化。
+description: 分析Reddit舆情、挖掘产品机会和差评风险时触发。触发词：Reddit VOC、Reddit舆情、每周舆情、Reddit监测、Reddit评论分析、差评预案、未满足需求、竞品动态。当前配置用于 cell phone tripod 和 vlogging kit 品类，可扩展至其他品类。不适用于：分析亚马逊站内评论（用 amazon-review-voc-analysis-v3）；分析TikTok内容（用 tiktok-voc-analysis）。
 last_verified: 2026-06-03
 staleness_risk: low
 ---

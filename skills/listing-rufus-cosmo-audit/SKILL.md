@@ -1,6 +1,6 @@
 ---
 name: listing-rufus-cosmo-audit
-description: Amazon Listing Rufus/COSMO 契合度审计 Skill。对已完成的 Listing 进行结构化审计，评估 Query Intent 覆盖、COSMO 语义完整性、参数密度、自然语言质量和合规风险，输出评分、差距分析和改写建议。当用户提到"listing审计"、"审计listing"、"rufus审计"、"cosmo审计"、"listing audit"、"audit listing"时使用此 skill。
+description: 对已有Listing做Rufus/COSMO语义审计时触发。触发词：listing审计、审计listing、rufus审计、cosmo审计、listing audit、语义审计、Query Intent覆盖检查、COSMO契合度。输入已完成的Listing文本，输出5维评分+差距分析+改写建议。不适用于：从零撰写Listing（用 amazon-listing-v2）。
 last_verified: 2026-06-03
 staleness_risk: high
 ---

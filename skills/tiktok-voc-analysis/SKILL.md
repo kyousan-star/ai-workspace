@@ -1,6 +1,6 @@
 ---
 name: tiktok-voc-analysis
-description: TikTok VOC analysis for Cell Phone Tripod and Vlogging Kit. Use when the user asks for TikTok VOC monitoring, weekly or biweekly TikTok signal radar, TikTok review/comment analysis, short-video demand signals, content hook analysis, TikTok Shop conversion blockers, product opportunity discovery, or operating risk alerts.
+description: 分析TikTok评论和内容信号、挖掘产品需求时触发。触发词：TikTok VOC、TikTok舆情、TikTok评论分析、短视频需求信号、内容钩子分析、TikTok Shop转化、TikTok监测。当前配置用于 cell phone tripod 和 vlogging kit，可扩展。不适用于：分析Reddit舆情（用 reddit-voc-analysis-v2）；分析亚马逊站内评论（用 amazon-review-voc-analysis-v3）。
 last_verified: 2026-06-03
 staleness_risk: low
 ---
