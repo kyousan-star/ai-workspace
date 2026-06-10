@@ -1,11 +1,31 @@
 ---
 name: amazon-listing-v2
-description: Amazon Listing 撰写全流程 Skill（v2）。当用户需要为任何亚马逊品类撰写或优化 Listing 时触发，包括：资料完整度判断、产品事实库、竞品关键词分析、卖点提炼、Parity/Gap 市场格局、Rufus/COSMO 语义映射、A9 关键词布局、英文 Title/Bullets/Description/Search Terms 撰写、QA 回答库、合规与事实审计。当用户提到"写listing"、"撰写listing"、"listing优化"、"写标题五点"、"listing文案"时使用此 skill。
+description: 当用户需要撰写或优化亚马逊英文 Listing 时触发。触发词：写listing、撰写listing、listing优化、写标题、写五点、写标题五点、listing文案、写描述、写ST。输出 Title/Bullets/Description/Search Terms/QA回答库/合规审计全套交付物，覆盖事实库建立、关键词分析、Parity/Gap、Rufus/COSMO语义映射全流程。不适用于：仅做语义审计或合规检查（使用 listing-rufus-cosmo-audit）。
 last_verified: 2026-06-03
 staleness_risk: high
 ---
 
 # Amazon Listing 撰写 Skill（v2）
+
+## IPO 契约
+
+**INPUT（任选其一即可启动）**
+- 本品属性（必须）：尺寸、材质、功能、认证、包装内容等
+- 可选补充：竞品 Listing、关键词报告/ABA、VOC/评论洞察、Rufus/QA/搜索联想素材
+
+**OUTPUT（标准交付物）**
+1. Product Fact Bank（事实库）
+2. Strategy Summary（策略摘要，含定位/Parity/Gap）
+3. Title + 字符数
+4. Bullet Points ×5 + 每条字符数
+5. Product Description
+6. Search Terms + bytes 估算
+7. QA Answer Bank
+8. Audit（事实审计 + 关键词布局 + 合规风险 + 缺失数据）
+
+**降级规则：** 只提供本品属性时走快速模式，输出 Title + Bullets 初稿；有竞品/关键词资料自动升级为标准/深度模式。
+
+---
 
 ## Role（角色）
 
@@ -27,6 +47,45 @@ staleness_risk: high
 - 若未挂载黑名单，输出前仍需检查常见高风险词：Best Seller、#1、No.1、Top Rated、Free Shipping、Guaranteed、cure、treat、medical claims、竞品品牌名、ASIN、站外 URL、联系方式、促销时效词等，并提醒用户做后台最终核查。
 - 禁止输出未经证实的效果提升百分比。
 - 对 Amazon 政策、类目规范、后台字符限制存在不确定时，必须标注"需以当前 Seller Central 类目模板为准"。
+
+---
+
+## 范例（标准模式）
+
+**INPUT**
+> 产品：竹制砧板 | 尺寸：18×12 inch | 材质：有机竹，FSC认证 | 特点：双面可用，带接汁凹槽，自带挂孔，不含BPA | 品牌：Bambu | 站点：美国 | 竞品关键词：bamboo cutting board、wood cutting board for kitchen、large cutting board with juice groove
+
+**OUTPUT（节选，展示格式）**
+
+**Product Fact Bank（部分）**
+
+| 属性 | 原始值 | 英文表达 | 证据来源 |
+|------|--------|----------|----------|
+| 尺寸 | 18×12 inch | 18 x 12 inch | 用户提供 |
+| 材质 | 有机竹，FSC认证 | FSC-certified organic bamboo | 用户提供 |
+| 功能 | 双面可用 | reversible double-sided surface | 用户提供 |
+| 功能 | 接汁凹槽 | deep juice groove around perimeter | 用户提供 |
+| 安全 | 不含BPA | BPA-free | 用户提供 |
+
+**Strategy Summary**
+- 目标人群：家庭厨房用户，注重环保和食品安全
+- 核心场景：日常切菜、处理肉类/水果、厨房备餐
+- Parity：尺寸参数、材质说明（竞品标配）
+- Gap：FSC认证是差异化点，竞品少有明确标注
+- 差异化切入：环保认证 + 双面设计 + 防漏汁
+
+**Title**
+`Bambu Bamboo Cutting Board 18x12 Inch, FSC Certified Organic Bamboo, Reversible with Deep Juice Groove and Hanging Hole, BPA-Free`
+（字符数：130）
+
+**Bullet Point 1**
+`FSC-CERTIFIED ORGANIC BAMBOO — Made from sustainably sourced organic bamboo verified by the Forest Stewardship Council, free from BPA and harmful chemicals, safe for food contact and everyday kitchen use.`（197字符）
+
+**Bullet Point 2**
+`REVERSIBLE DOUBLE-SIDED DESIGN — Flip between a smooth side for slicing vegetables and fruits and a grooved side for carving meats, maximizing versatility without needing two separate boards.`（191字符）
+
+**Search Terms**
+`bamboo cutting board large organic reversible juice groove fsc certified bpa free wood chopping board kitchen prep`（109字符）
 
 ---
 
