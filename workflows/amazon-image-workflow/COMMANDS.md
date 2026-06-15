@@ -87,9 +87,19 @@ PROJECT_ROOT
 
 Gate 2 通过。
 
-请读取 PROJECT_ROOT/ai_image_workflow/01_WORKFLOW/status.md 和 04_IMAGE_SEQUENCE/listing_image_sequence.md。
+请读取：
+- PROJECT_ROOT/ai_image_workflow/01_WORKFLOW/status.md
+- PROJECT_ROOT/ai_image_workflow/03_STRATEGY/gate1_strategy_summary.md（卖点优先级、否决手段、视觉禁区）
+- PROJECT_ROOT/ai_image_workflow/04_IMAGE_SEQUENCE/listing_image_sequence.md（图序和页面任务）
+- PROJECT_ROOT/ai_image_workflow/02_RESEARCH/competitor_visual_analysis.md Part 2（视觉手段候选库）
 
-继续生成每张图的设计 brief、生图 prompt、negative prompt、后期合成指引和验收标准。
+调用 amazon-image-planner-v3 执行阶段4，传入以下上下文：
+- 图序来自 listing_image_sequence.md（已锁定，跳过 v3 Phase 1/1.5/2）
+- 卖点优先级来自 gate1_strategy_summary.md（已锁定）
+- 手段候选库来自竞品 Part 2（按页面任务匹配引用）
+- 否决手段和视觉禁区来自 gate1_strategy_summary.md（写入每个 prompt 的 STRICTLY AVOID）
+
+每张图输出 A/B 双 prompt（方案A功能型，方案B停顿感型），标注手段来源。
 
 所有项目结果只写入 PROJECT_ROOT/ai_image_workflow/，不要写入中央 workflow 包。
 ```
