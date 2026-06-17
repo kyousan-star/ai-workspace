@@ -1,1 +1,7 @@
 .DS_Store
+
+# alexa-monitor 敏感文件
+scripts/alexa-monitor/amazon_cookies.json
+scripts/alexa-monitor/debug/
+scripts/alexa-monitor/raw/
+scripts/alexa-monitor/__pycache__/

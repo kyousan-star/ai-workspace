@@ -1,0 +1,6 @@
+# 填写你自己品牌（Vlogara）的 ASIN，一行一个
+# 这些 ASIN 会在关键词自然位排名中被单独标注为"我的 ASIN"
+# ST102 相关 ASIN
+# B0XXXXXXXXX
+# VK101 相关 ASIN
+# B0XXXXXXXXX
