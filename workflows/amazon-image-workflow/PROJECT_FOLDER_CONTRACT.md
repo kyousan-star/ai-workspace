@@ -41,6 +41,8 @@ ai_image_workflow/
 - `current_listing_images/`
 - `brand_assets/`
 
+`brand_assets/` 若与 `visual-lab/asset-library/{product-line}/brand-style.md` 已有内容重复，应指向asset-library而非重复存放（见阶段4.5）。
+
 ## 01_WORKFLOW
 
 流程控制文件：
