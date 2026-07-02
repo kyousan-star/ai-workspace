@@ -37,6 +37,8 @@ install_codex_skill() {
   echo "Installed (codex-only) $name"
 }
 
+install_skill blue-ocean-finder
+install_skill zach-product-research
 install_skill amazon-category-analysis
 install_skill amazon-listing-v2
 install_skill amazon-review-voc-analysis-v3
