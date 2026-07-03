@@ -1,9 +1,18 @@
 ---
 name: amazon-product-dev
-description: 评估一个亚马逊产品/品类值不值得做时触发。触发词：选品分析、产品值得开发吗、这个品类能不能做、产品可行性、盈亏测算、推广预演、产品调研、竞品分析、CPC分析、TACOS预估、专利风险、谷歌趋势、VOC洞察。无需上传数据文件，凭品类名/产品描述即可启动。覆盖22+维度多角度决策分析，输出可行性判断+盈亏测算+推广沙盘。不适用于：已有品类数据表格做深度量化分析（用 amazon-category-analysis）。
-last_verified: 2026-06-03
-staleness_risk: medium
+description: "⚠️ DEPRECATED（2026-07-02）：本 skill 已停用，不再安装为独立入口。替代方案——产品/品类可行性评估用 zach-product-research（Sorftime 实时数据，同样无需上传文件）；已有 24 个月面板数据的深度分析用 amazon-category-analysis；找方向/缝隙用 blue-ocean-finder。本 skill 的独有能力已迁出：D4 盈亏平衡 + D5 推广沙盘 → zach-product-research/references/launch_simulation.md；决策阈值表 → sops/amazon-decision-thresholds.md。"
+deprecated: true
+superseded_by: zach-product-research / amazon-category-analysis / blue-ocean-finder
+last_verified: 2026-07-02
+staleness_risk: high
 ---
+
+> **⚠️ DEPRECATED（2026-07-02）**：本 skill 已停用。定位（"无数据文件、凭品类名启动的可行性评估"）已被 zach-product-research 实质取代——后者同样无需上传文件，且有 Sorftime 真实数据管线。独有内容已迁出：
+> - D4 盈亏平衡测算 + D5 推广沙盘 → `zach-product-research/references/launch_simulation.md`
+> - `decision-thresholds.md` 阈值表 → `ai-workspace/sops/amazon-decision-thresholds.md`（共享 SOP，以该版本为准）
+> - 22 维清单与交叉验证原则保留在本目录 `analysis-dimensions.md`，仅作历史参考
+>
+> 以下为历史原文，不再维护。
 
 # 亚马逊产品开发决策分析框架 (Amazon Product Development Decision Framework)
 

@@ -61,6 +61,8 @@ risk-level: low
   - 用途：HTML 精简报告区块定义参考
 - `references/analysis_patterns.md`
   - 用途：四种分析模式的模板与示例，报告写作时必须引用（至少使用 3 种）
+- `references/launch_simulation.md`
+  - 用途：盈亏平衡三阶段测算 + 推广沙盘 Phase 0-4 模板（自 amazon-product-dev 迁入）；Step 3.5 出 GO/CONDITIONAL GO 时追加输出
 
 ## Assets
 
@@ -602,6 +604,8 @@ risk-level: low
 | 0-3.9 | **NO-GO** | 不建议进入，风险大于机会 |
 
 **输出**：评分卡 + 决策建议 + Top3 机会 + Top3 风险 + 缓解方案
+
+**GO / CONDITIONAL GO 时追加**：按 `references/launch_simulation.md` 输出盈亏平衡三阶段测算 + 推广沙盘预演（回答"推到稳态要花多少钱、多久回本"）；其中累计投入峰值须对照用户可用弹药，超出即触发资金排除项。拟投入较大时，建议用户下载 24 个月面板数据跑 `amazon-category-analysis` 终验后再拍板（下载清单见 blue-ocean-finder `references/handoff.md`「面板终验下载清单」）。
 
 **注意**：如果决策为 NO-GO，流程终止，不进入 Step 4。
 
