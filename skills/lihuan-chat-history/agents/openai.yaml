@@ -1,0 +1,7 @@
+interface:
+  display_name: "Lihuan Chat History"
+  short_description: "Search and resume local Codex/Claude chats"
+  default_prompt: "Use $lihuan-chat-history to search my recent local Codex and Claude history for the context I ask for."
+
+policy:
+  allow_implicit_invocation: false

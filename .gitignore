@@ -5,3 +5,6 @@ scripts/alexa-monitor/amazon_cookies.json
 scripts/alexa-monitor/debug/
 scripts/alexa-monitor/raw/
 scripts/alexa-monitor/__pycache__/
+
+.vscode/
+.DS_Store

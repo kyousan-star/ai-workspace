@@ -67,9 +67,15 @@ install_skill listing-rufus-cosmo-audit
 install_skill aba-keyword-monitor
 install_skill competitor-traffic-battle
 install_skill amazon-image-planner-v2
+install_skill amazon-image-planner-v3
 install_skill product-asset-extractor
 install_skill batch-asset-generator
+install_skill amazon-pricing-validator
 install_codex_skill web-access-codex
+# 2026-07-02 自 ~/.codex/skills 收编的孤儿（原只存在于安装目录，无仓库备份）
+install_codex_skill report-design
+install_codex_skill lihuan-goal-meta-skill
+install_codex_skill lihuan-chat-history
 install_claude_skill invest
 install_claude_skill teach
 install_claude_skill web-access

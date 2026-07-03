@@ -130,6 +130,4 @@ v3 是 workflow 的执行层，也可以完全独立运行。
 
 ## 版本说明
 
-当前版本 v3（2026-06-15）。v2 已存档，如需回溯见 `skills/amazon-image-planner-v2-archive/`。
-
-agent 能力边界详见 `README.md`。
+当前版本 v3（SKILL.md 补全于 2026-07-02）。v2 仍在服役（触发词"用v2规划图"），两版共用同一套 T09-T11 模板库和防坑规则（references/ 目录，修改需两边同步）。执行流程见本目录 `SKILL.md`。

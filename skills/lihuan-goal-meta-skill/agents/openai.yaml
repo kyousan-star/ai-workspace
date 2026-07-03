@@ -1,0 +1,6 @@
+interface:
+  display_name: "Lihuan Goal Meta Skill"
+  short_description: "中文优先的 Codex 目标收敛与技能路由"
+  default_prompt: "Use $lihuan-goal-meta-skill to turn my vague request into a Chinese-first Codex /goal with skill routing, verification evidence, boundaries, and pause conditions."
+policy:
+  allow_implicit_invocation: true

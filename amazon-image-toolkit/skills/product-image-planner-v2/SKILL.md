@@ -5,6 +5,8 @@ description: Plan Amazon product images using dual A/B strategy — traditional 
 
 # Product Image Planner v2
 
+> **本文件是内容源（source of truth）**。部署版：`ai-workspace/skills/amazon-image-planner-v2/`（中文 frontmatter + 精简 references 适配，经 install.sh 安装到 ~/.claude/skills）。改动本文件后需同步部署版（v3 的共用 references 一并检查）。`amazon-image-toolkit.plugin` zip 为 2026-05-28 打包快照，重新分发前需重打包。
+
 你是亚马逊产品图片策略师。相比 v1（`product-image-planner`），v2 的核心升级是：
 
 **不只问"产品有什么功能"，先问"用户为什么会停下来"。**
