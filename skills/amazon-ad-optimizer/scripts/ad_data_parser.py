@@ -18,11 +18,14 @@ Amazon PPC 广告数据解析引擎 v2 (US站)
 
 import pandas as pd
 import numpy as np
+import re
 import sys
 import os
 import json
 import argparse
 from datetime import datetime
+
+ASIN_RE = re.compile(r'^b0[a-z0-9]{8}$')
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(SCRIPT_DIR, "..", "ppc_config.json")
@@ -344,8 +347,9 @@ def diagnose_row(row, phase_cfg, be_cpa, core_terms):
             "广告策略": "根据具体数据调整竞价/否词/Listing", "预期结果": "有提升空间",
         }
 
-    # 否定判定（相位感知 + 保护词）
+    # 否定判定（相位感知 + 保护词 + ASIN/关键词分流）
     is_protected = any(ct in term for ct in core_terms) if core_terms and term else False
+    is_asin_term = bool(ASIN_RE.match(term))
     negation = ""
     if row.get('转化分层') == '0转化' and clicks > 0:
         hit_clicks = clicks >= phase_cfg["negation_min_clicks"]
@@ -358,7 +362,8 @@ def diagnose_row(row, phase_cfg, be_cpa, core_terms):
                 reason.append(f"点击{clicks}≥{phase_cfg['negation_min_clicks']}")
             if hit_spend:
                 reason.append(f"花费${spend:.2f}≥{phase_cfg['negation_max_spend_x_be_cpa']}×盈亏CPA")
-            negation = "❌否定候选(" + "，".join(reason) + ")"
+            kind = "否定ASIN" if is_asin_term else "否定关键词"
+            negation = f"❌{kind}候选(" + "，".join(reason) + ")"
         elif clicks <= phase_cfg["observe_max_clicks"]:
             negation = "⏸️数据不足-观察"
         else:
@@ -453,33 +458,83 @@ def verify_previous_actions(log, df):
     return pd.DataFrame(rows)
 
 
-def append_actions(log, df, phase, input_file):
-    """把本轮推荐动作写入日志，供下轮核验"""
+def append_actions(log, df, phase, input_file, summary, harvest_terms=None):
+    """把本轮推荐动作+整体指标写入日志，供下轮核验和趋势分析(ROADMAP #5)"""
     term_col = 'search_term' if 'search_term' in df.columns else ('targeting' if 'targeting' in df.columns else None)
     if term_col is None:
         return log, 0
+    harvest_terms = harvest_terms or set()
     actions = []
     for _, row in df.iterrows():
-        entry = {"term": str(row[term_col]), "clicks": int(row.get('clicks', 0)),
+        term = str(row[term_col])
+        entry = {"term": term, "clicks": int(row.get('clicks', 0)),
                  "spend": round(float(row.get('spend', 0)), 2), "orders": int(row.get('orders', 0))}
-        if str(row.get('否定判定', '')).startswith('❌'):
-            entry["action"] = "精准否定"
+        neg = str(row.get('否定判定', ''))
+        if neg.startswith('❌'):
+            entry["action"] = "否定ASIN" if "否定ASIN" in neg else "精准否定"
+            actions.append(entry)
+        elif term.lower().strip() in harvest_terms:
+            entry["action"] = "开精准投放"
+            if "建议竞价" in row.index and pd.notna(row.get("建议竞价")):
+                entry["suggested_bid"] = float(row["建议竞价"])
             actions.append(entry)
         elif row.get('诊断名称') in SCALE_UP_NAMES:
             entry["action"] = "放大投放"
             if "建议竞价" in row.index and pd.notna(row.get("建议竞价")):
                 entry["suggested_bid"] = float(row["建议竞价"])
             actions.append(entry)
+    s = summary["数据概览"]
+    run_summary = {"spend": round(s["总花费"], 2), "sales": round(s["总销售额"], 2),
+                   "clicks": s["总点击"], "impressions": s["总曝光"], "orders": s["总订单"]}
+    if s["总点击"]:
+        run_summary["cvr"] = round(s["总订单"] / s["总点击"], 4)
+        run_summary["cpc"] = round(s["总花费"] / s["总点击"], 2)
+    if s["总销售额"]:
+        run_summary["acos"] = round(s["总花费"] / s["总销售额"], 4)
     log["runs"].append({"date": datetime.now().strftime("%Y-%m-%d"),
                         "file": os.path.basename(input_file),
-                        "phase": phase, "actions": actions})
+                        "phase": phase, "summary": run_summary, "actions": actions})
     return log, len(actions)
+
+
+def roadmap_reminder(log):
+    """数据积累够了就提醒启用 ROADMAP 待办模块，防止遗忘"""
+    n = len(log.get("runs", []))
+    if n >= 4:
+        print(f"\n📌 ROADMAP提醒: 动作日志已积累{n}轮数据，以下待开发模块的数据条件已成熟，"
+              f"请提醒用户决定是否现在开发(详见 skill 根目录 ROADMAP.md):")
+        print("   #5 趋势模块 — 用日志里各轮 summary 画 CVR爬坡/CPC/ACOS 周趋势，判断新品健康度")
+        print("   #6 预算再分配+广告位模块 — 需要用户导出 预算报告+广告位报告")
+
+
+# ============================================================
+# 出单词收割（自动/广泛跑出的出单词，未开精准投放的）
+# ============================================================
+def find_harvest_words(df):
+    if 'search_term' not in df.columns or 'orders' not in df.columns:
+        return pd.DataFrame()
+    exact_targets = set()
+    if 'targeting' in df.columns and 'match_type' in df.columns:
+        mt = df['match_type'].astype(str).str.lower()
+        exact_targets = set(df.loc[mt.str.contains('exact|精确|精准', na=False), 'targeting']
+                            .astype(str).str.lower().str.strip())
+    terms = df['search_term'].astype(str).str.lower().str.strip()
+    is_asin = terms.apply(lambda t: bool(ASIN_RE.match(t)))
+    mask = (df['orders'] > 0) & (~is_asin) & (~terms.isin(exact_targets))
+    out = df[mask].copy()
+    if out.empty:
+        return out
+    # 同一词多行(不同活动)去重，保留订单最多的一行
+    out = out.sort_values('orders', ascending=False)
+    out = out.loc[~terms[out.index].duplicated()]
+    sort_col = '利润贡献' if '利润贡献' in out.columns else 'orders'
+    return out.sort_values(sort_col, ascending=False)
 
 
 # ============================================================
 # 汇总
 # ============================================================
-def generate_summary(df, margin, phase):
+def generate_summary(df, margin, phase, total_sales=None, total_orders=None):
     s = {
         "总行数": len(df),
         "总花费": float(df.get('spend', pd.Series(dtype=float)).sum()),
@@ -507,6 +562,14 @@ def generate_summary(df, margin, phase):
             m["盈亏状态"] = f"⚠️{phase}期容忍范围内(盈亏线×{tol}以内)，关注趋势"
         else:
             m["盈亏状态"] = f"🚨超出{phase}期容忍线(盈亏线×{tol})，需立即优化"
+
+    # 利润视角（美元优先于比率）
+    m["广告贡献净利"] = f"${s['总销售额']*margin - s['总花费']:,.2f} (=销售额×毛利率-花费，仅广告直接归因部分)"
+    if total_sales:
+        m["TACoS"] = f"{s['总花费']/total_sales*100:.1f}% (广告花费/总销售额)"
+    if total_orders:
+        organic = total_orders - s['总订单']
+        m["自然订单占比"] = f"{organic/total_orders*100:.0f}% ({organic}/{total_orders}，上升=广告飞轮生效)"
     return {"数据概览": s, "整体指标": m}
 
 
@@ -519,6 +582,10 @@ def main():
     ap.add_argument("--phase", choices=["launch", "growth", "stable"], default="stable")
     ap.add_argument("--core-terms", default="", help="核心保护词根，逗号分隔")
     ap.add_argument("--attribution", type=int, choices=[7, 14], default=7)
+    ap.add_argument("--total-sales", type=float, default=None,
+                    help="周期内SKU总销售额(含自然单，来自业务报告)，用于TACoS")
+    ap.add_argument("--total-orders", type=int, default=None,
+                    help="周期内SKU总订单数(含自然单)，用于自然订单占比")
     ap.add_argument("--actions-log", default=None)
     ap.add_argument("--no-actions-log", action="store_true")
     ap.add_argument("--output", default=None)
@@ -556,28 +623,47 @@ def main():
     if args.price:
         df = suggest_bids(df, margin, args.price, phase)
 
+    # 利润贡献: 收益最大化的核心排序指标(美元优先于比率)
+    if 'sales' in df.columns and 'spend' in df.columns:
+        df['利润贡献'] = df['sales'] * margin - df['spend']
+
+    # 出单词收割
+    harvest_df = find_harvest_words(df)
+    harvest_terms = set(harvest_df['search_term'].astype(str).str.lower().str.strip()) \
+        if not harvest_df.empty else set()
+
+    summary = generate_summary(df, margin, phase, args.total_sales, args.total_orders)
+
     # PDCA: 核验上轮 + 记录本轮
     verify_df = pd.DataFrame()
+    log = load_actions_log(actions_log_path)
     if not args.no_actions_log:
-        log = load_actions_log(actions_log_path)
         verify_df = verify_previous_actions(log, df)
         if not verify_df.empty:
             print(f"[✓] 上期动作核验: {len(verify_df)}条 (详见Excel'上期动作核验'sheet)")
-        log, n_actions = append_actions(log, df, phase, args.input_file)
+        log, n_actions = append_actions(log, df, phase, args.input_file, summary, harvest_terms)
         with open(actions_log_path, "w", encoding="utf-8") as f:
             json.dump(log, f, ensure_ascii=False, indent=1)
         print(f"[✓] 本轮{n_actions}条推荐动作已写入日志: {actions_log_path}")
 
-    summary = generate_summary(df, margin, phase)
-
-    # 输出Excel
-    neg_df = df[df['否定判定'].astype(str).str.startswith('❌')] if '否定判定' in df.columns else pd.DataFrame()
+    # 输出Excel（否定分ASIN/关键词两表，清单按利润影响排序）
+    sort_kw = {'by': '利润贡献', 'ascending': True} if '利润贡献' in df.columns \
+        else {'by': 'spend', 'ascending': False}
+    neg_all = df[df['否定判定'].astype(str).str.startswith('❌')] if '否定判定' in df.columns else pd.DataFrame()
+    neg_kw = neg_all[neg_all['否定判定'].str.contains('否定关键词')].sort_values(**sort_kw) if not neg_all.empty else neg_all
+    neg_asin = neg_all[neg_all['否定判定'].str.contains('否定ASIN')].sort_values(**sort_kw) if not neg_all.empty else neg_all
     scale_df = df[df['诊断名称'].isin(SCALE_UP_NAMES)] if '诊断名称' in df.columns else pd.DataFrame()
+    if not scale_df.empty and '利润贡献' in scale_df.columns:
+        scale_df = scale_df.sort_values('利润贡献', ascending=False)
 
     with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
         df.to_excel(writer, sheet_name='完整分析数据', index=False)
-        if not neg_df.empty:
-            neg_df.to_excel(writer, sheet_name='否定候选', index=False)
+        if not harvest_df.empty:
+            harvest_df.to_excel(writer, sheet_name='收割清单-出单未精准投放', index=False)
+        if not neg_kw.empty:
+            neg_kw.to_excel(writer, sheet_name='否定关键词候选', index=False)
+        if not neg_asin.empty:
+            neg_asin.to_excel(writer, sheet_name='否定ASIN候选', index=False)
         if not scale_df.empty:
             scale_df.to_excel(writer, sheet_name='放大候选', index=False)
         if not verify_df.empty:
@@ -594,8 +680,20 @@ def main():
         print("\n  诊断分布:")
         for name, count in df['诊断名称'].value_counts().items():
             print(f"    {name}: {count}个")
-    if not neg_df.empty or not scale_df.empty:
-        print(f"\n  ❌ 否定候选 {len(neg_df)}个 | ⭐ 放大候选 {len(scale_df)}个")
+    print(f"\n  🌾 收割清单(出单未精准投放) {len(harvest_df)}个"
+          f" | ❌ 否定关键词 {len(neg_kw)}个 + 否定ASIN {len(neg_asin)}个"
+          f" | ⭐ 放大候选 {len(scale_df)}个")
+    if '利润贡献' in df.columns:
+        top = df.nlargest(3, '利润贡献')
+        bot = df.nsmallest(3, '利润贡献')
+        tc = 'search_term' if 'search_term' in df.columns else 'targeting'
+        if tc in df.columns:
+            print("\n  💰 利润贡献TOP3: " + " | ".join(
+                f"{str(r[tc])[:25]} ${r['利润贡献']:.2f}" for _, r in top.iterrows()))
+            print("  🩸 利润拖累TOP3: " + " | ".join(
+                f"{str(r[tc])[:25]} ${r['利润贡献']:.2f}" for _, r in bot.iterrows()))
+
+    roadmap_reminder(log)
 
 
 if __name__ == "__main__":

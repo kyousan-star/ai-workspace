@@ -1,5 +1,5 @@
 {
-  "_comment": "PPC 共享阈值配置 — amazon-ad-optimizer 与 amazon-ads-analysis 的唯一事实源。所有 ACOS/ROAS 类阈值由毛利率(margin)动态推导，不要写死。",
+  "_comment": "PPC 共享阈值配置 — 本skill所有脚本(ad_data_parser/quick_read)的唯一事实源。所有 ACOS/ROAS 类阈值由毛利率(margin)动态推导，不要写死。",
   "market": "US",
   "margin_default": 0.35,
   "_margin_note": "盈亏ACOS = 毛利率 = (售价×(1-佣金率) - 产品成本 - FBA费) / 售价。盈亏ROAS = 1/盈亏ACOS。运行脚本时必须用 --margin 传入产品真实毛利率，此处仅为缺省值。",

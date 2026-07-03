@@ -1,30 +1,40 @@
 #!/usr/bin/env python3
 """
-亚马逊SP广告快读分析 (US站)
-支持亚马逊广告后台原生导出报表(CSV/XLSX)，字段中英文自动映射。
+亚马逊SP广告快读模式 (US站) — amazon-ad-optimizer 的轻量入口
+只做读数和方向判断，不写动作日志。要完整诊断/竞价建议/PDCA闭环用 ad_data_parser.py。
 
 用法:
-  python3 analyze_ads.py --search-terms 搜索词报告.csv --margin 0.35 --phase launch
+  python3 quick_read.py --search-terms 搜索词报告.csv --margin 0.35 --phase launch
 参数:
   --search-terms <file>        搜索词报告(必传)
   --advertised-product <file>  广告商品报告(可选，算广告整体效率)
-  --business <file>            业务报告(可选，算广告流量/订单占比)
-  --margin 0.35                毛利率=盈亏ACOS(必传，否则默认0.35并告警)
-  --phase launch|growth|stable 生命周期阶段(默认stable)
-  --core-terms "a,b"           核心保护词根，永不进入否定候选
+  --business <file>            业务报告(可选，算TACoS/广告流量占比/自然订单占比)
+  --margin / --phase / --price / --core-terms  同 ad_data_parser.py
+阈值来源: ../ppc_config.json（与完整模式同一事实源）
 """
 
 import argparse
+import json
 import os
+import re
 import sys
 import pandas as pd
 
-# 与 amazon-ad-optimizer/ppc_config.json 保持一致的阶段阈值
-PHASES = {
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+ASIN_RE = re.compile(r'^b0[a-z0-9]{8}$')
+
+FALLBACK_PHASES = {
     "launch": {"negation_min_clicks": 20, "negation_max_spend_x_be_cpa": 3.0, "scale_up_min_orders": 1},
     "growth": {"negation_min_clicks": 15, "negation_max_spend_x_be_cpa": 2.0, "scale_up_min_orders": 2},
     "stable": {"negation_min_clicks": 10, "negation_max_spend_x_be_cpa": 1.5, "scale_up_min_orders": 2},
 }
+
+try:
+    with open(os.path.join(SCRIPT_DIR, "..", "ppc_config.json"), encoding="utf-8") as f:
+        PHASES = json.load(f)["phases"]
+except Exception:
+    print("[!] ppc_config.json 加载失败，使用内置兜底阈值")
+    PHASES = FALLBACK_PHASES
 
 FIELDS = {
     "impressions": ["impressions", "曝光量", "展示次数", "展现次数"],
@@ -35,10 +45,12 @@ FIELDS = {
     "orders": ["7 day total orders (#)", "7 day total orders", "7天总订单量",
                "14 day total orders (#)", "orders", "订单量"],
     "search_term": ["customer search term", "客户搜索词", "搜索词"],
+    "targeting": ["targeting", "投放对象", "投放"],
     "match_type": ["match type", "匹配类型"],
     "campaign": ["campaign name", "广告活动名称", "广告活动"],
     "sessions": ["sessions - total", "sessions", "访客数"],
     "units": ["units ordered", "订单数", "总订单"],
+    "total_sales_biz": ["ordered product sales", "销售额"],
 }
 
 
@@ -81,7 +93,7 @@ def map_columns(df):
             used.add(hit)
     df = df.rename(columns=rename)
     df = df.loc[:, ~df.columns.duplicated()]
-    for col in ('spend', 'sales'):
+    for col in ('spend', 'sales', 'total_sales_biz'):
         if col in df.columns:
             df[col] = pd.to_numeric(df[col].astype(str).str.replace(r'[$,€£%]', '', regex=True),
                                     errors='coerce').fillna(0.0)
@@ -130,15 +142,18 @@ def main():
         if c in st.columns:
             agg[c] = 'sum'
     by_term = st.groupby('search_term').agg(agg).reset_index()
-    by_term['roas'] = (by_term['sales'] / by_term['spend']).where(by_term['spend'] > 0, 0) \
-        if 'sales' in by_term.columns else 0
+    if 'sales' in by_term.columns:
+        by_term['roas'] = (by_term['sales'] / by_term['spend']).where(by_term['spend'] > 0, 0)
+        by_term['利润贡献'] = by_term['sales'] * margin - by_term['spend']
 
     line("整体指标(搜索词口径)")
     t_spend, t_sales = by_term['spend'].sum(), by_term.get('sales', pd.Series([0])).sum()
     t_clicks, t_orders = by_term['clicks'].sum(), by_term.get('orders', pd.Series([0])).sum()
     acos = t_spend / t_sales if t_sales > 0 else float('inf')
     print(f"花费 ${t_spend:,.2f} | 销售 ${t_sales:,.2f} | ACOS {acos*100:.1f}% (盈亏线{margin*100:.0f}%)")
-    print(f"点击 {t_clicks:,.0f} | 订单 {t_orders:,.0f} | CVR {t_orders/t_clicks*100:.1f}%" if t_clicks else "无点击")
+    print(f"广告贡献净利 ${t_sales*margin - t_spend:,.2f} (=销售额×毛利率-花费)")
+    if t_clicks:
+        print(f"点击 {t_clicks:,.0f} | 订单 {t_orders:,.0f} | CVR {t_orders/t_clicks*100:.1f}%")
     if acos <= margin:
         print("状态: ✅ 广告盈利")
     elif acos <= margin * (2.0 if args.phase == 'launch' else 1.5):
@@ -154,17 +169,32 @@ def main():
         mt['花费占比%'] = mt['spend'] / mt['spend'].sum() * 100
         print(mt[['花费占比%', 'ROAS', 'orders']].round(2).sort_values('ROAS', ascending=False).to_string())
 
-    # 高效词
-    if 'orders' in by_term.columns:
-        line(f"高效词 (ROAS≥盈亏ROAS {be_roas:.2f} 且订单≥{phase['scale_up_min_orders']})")
+    if 'orders' in by_term.columns and 'sales' in by_term.columns:
+        # 高效词（按利润贡献排序）
+        line(f"高效词 (ROAS≥盈亏ROAS {be_roas:.2f} 且订单≥{phase['scale_up_min_orders']}，按利润贡献排序)")
         hi = by_term[(by_term['roas'] >= be_roas) &
-                     (by_term['orders'] >= phase['scale_up_min_orders'])].sort_values('roas', ascending=False)
+                     (by_term['orders'] >= phase['scale_up_min_orders'])].sort_values('利润贡献', ascending=False)
         for _, r in hi.head(15).iterrows():
-            print(f"  {str(r['search_term'])[:40]:<42} 订单{r['orders']:>3.0f}  ROAS {r['roas']:.2f}")
+            print(f"  {str(r['search_term'])[:38]:<40} 订单{r['orders']:>3.0f}  ROAS {r['roas']:>5.2f}  利润${r['利润贡献']:>7.2f}")
         if hi.empty:
             print("  (无。新品期属正常，看词的点击和排名趋势)")
 
-        # 否定候选
+        # 收割提示：出单但未精准投放
+        exact_targets = set()
+        if 'targeting' in st.columns and 'match_type' in st.columns:
+            mtl = st['match_type'].astype(str).str.lower()
+            exact_targets = set(st.loc[mtl.str.contains('exact|精确|精准', na=False), 'targeting']
+                                .astype(str).str.lower().str.strip())
+        terms_l = by_term['search_term'].astype(str).str.lower().str.strip()
+        harvest = by_term[(by_term['orders'] > 0)
+                          & (~terms_l.apply(lambda t: bool(ASIN_RE.match(t))))
+                          & (~terms_l.isin(exact_targets))]
+        if not harvest.empty:
+            line(f"🌾 收割清单：出单但未开精准投放 ({len(harvest)}个，最高优先级动作)")
+            for _, r in harvest.sort_values('利润贡献', ascending=False).head(10).iterrows():
+                print(f"  {str(r['search_term'])[:38]:<40} 订单{r['orders']:>3.0f}  利润${r['利润贡献']:>7.2f}  → 开EXACT组")
+
+        # 否定候选（关键词/ASIN分流）
         gate_desc = f"点击≥{phase['negation_min_clicks']}" + \
             (f" 或花费≥{phase['negation_max_spend_x_be_cpa']}×盈亏CPA(${phase['negation_max_spend_x_be_cpa']*be_cpa:.2f})" if be_cpa else "")
         line(f"否定候选 ({args.phase}期门槛: 零转化且 {gate_desc})")
@@ -173,16 +203,15 @@ def main():
         if be_cpa:
             gate = gate | (zero['spend'] >= phase['negation_max_spend_x_be_cpa'] * be_cpa)
         neg = zero[gate].sort_values('spend', ascending=False)
-        n_shown = 0
-        for _, r in neg.iterrows():
+        for _, r in neg.head(20).iterrows():
             term = str(r['search_term'])
-            if any(ct in term.lower() for ct in core_terms):
-                print(f"  🛡️ {term[:40]:<40} 点击{r['clicks']:>3.0f} 花费${r['spend']:>7.2f}  保护词-禁否，查Listing/价格")
+            tl = term.lower().strip()
+            if any(ct in tl for ct in core_terms):
+                print(f"  🛡️ {term[:38]:<38} 点击{r['clicks']:>3.0f} 花费${r['spend']:>7.2f}  保护词-禁否，查Listing/价格")
+            elif ASIN_RE.match(tl):
+                print(f"  ❌ {term[:38]:<38} 点击{r['clicks']:>3.0f} 花费${r['spend']:>7.2f}  → 否定商品(ASIN)入口")
             else:
-                print(f"  ❌ {term[:40]:<40} 点击{r['clicks']:>3.0f} 花费${r['spend']:>7.2f}")
-            n_shown += 1
-            if n_shown >= 20:
-                break
+                print(f"  ❌ {term[:38]:<38} 点击{r['clicks']:>3.0f} 花费${r['spend']:>7.2f}  → 否定关键词入口")
         if neg.empty:
             print("  (无达标否定候选)")
         near = zero[(~gate) & (zero['clicks'] >= phase['negation_min_clicks'] * 0.5)]
@@ -190,29 +219,36 @@ def main():
             print(f"  👀 另有{len(near)}个词接近门槛，下轮复查")
 
     # ---------- 广告商品报告(可选) ----------
-    ad_clicks = ad_orders = None
+    ad_clicks = ad_orders = ad_spend = None
     if args.advertised_product:
         ap_df = map_columns(read_any(args.advertised_product))
         line("广告整体效率(广告商品报告)")
-        sp, sa = ap_df.get('spend', pd.Series([0])).sum(), ap_df.get('sales', pd.Series([0])).sum()
+        ad_spend, sa = ap_df.get('spend', pd.Series([0])).sum(), ap_df.get('sales', pd.Series([0])).sum()
         ad_clicks = ap_df.get('clicks', pd.Series([0])).sum()
         ad_orders = ap_df.get('orders', pd.Series([0])).sum()
-        print(f"花费 ${sp:,.2f} | 销售 ${sa:,.2f} | ACOS {sp/sa*100:.1f}%" if sa > 0 else f"花费 ${sp:,.2f} | 无销售")
+        print(f"花费 ${ad_spend:,.2f} | 销售 ${sa:,.2f} | ACOS {ad_spend/sa*100:.1f}%" if sa > 0
+              else f"花费 ${ad_spend:,.2f} | 无销售")
 
-    # ---------- 业务报告(可选) ----------
+    # ---------- 业务报告(可选): TACoS/自然占比 ----------
     if args.business:
         biz = map_columns(read_any(args.business))
-        line("流量结构(业务报告)")
+        line("流量结构与TACoS(业务报告)")
         sessions = biz.get('sessions', pd.Series([0])).sum()
         units = biz.get('units', pd.Series([0])).sum()
+        # 业务报告的销售额列可能被通用sales别名先命中，两个键都查
+        biz_sales = biz.get('total_sales_biz', biz.get('sales', pd.Series([0]))).sum()
         print(f"总Sessions {sessions:,.0f} | 总订单 {units:,.0f}"
               + (f" | 整体CVR {units/sessions*100:.1f}%" if sessions else ""))
+        spend_for_tacos = ad_spend if ad_spend is not None else t_spend
+        if biz_sales:
+            print(f"TACoS {spend_for_tacos/biz_sales*100:.1f}% (广告花费/总销售额${biz_sales:,.2f})")
         if ad_clicks and sessions:
-            print(f"广告流量占比 {ad_clicks/sessions*100:.1f}% | 广告订单占比 "
-                  + (f"{ad_orders/units*100:.1f}%" if units else "N/A")
-                  + f" | 自然订单 {units - (ad_orders or 0):,.0f}")
+            print(f"广告流量占比 {ad_clicks/sessions*100:.1f}%")
+        if ad_orders is not None and units:
+            print(f"广告订单占比 {ad_orders/units*100:.1f}% | 自然订单 {units - ad_orders:,.0f}"
+                  f" (占比{(units-ad_orders)/units*100:.0f}%，上升=广告飞轮生效)")
 
-    print(f"\n{'='*60}\n分析完成。完整优化(竞价建议/PDCA闭环)用 amazon-ad-optimizer。\n{'='*60}")
+    print(f"\n{'='*60}\n快读完成。完整诊断/竞价建议/PDCA闭环: 用 ad_data_parser.py。\n{'='*60}")
 
 
 if __name__ == '__main__':

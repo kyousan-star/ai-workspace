@@ -4,7 +4,7 @@ Use this reference when the request touches Amazon ads, Listing, VOC, category r
 
 ## Skill Routing
 
-- Ads/PPC/search terms/ACOS/ROAS/CPC/CVR/TACOS: route to `amazon-ad-optimizer` for action strategy or `amazon-ads-analysis` for report-level analysis.
+- Ads/PPC/search terms/ACOS/ROAS/CPC/CVR/TACOS: route to `amazon-ad-optimizer` (quick_read.py for report-level reading, ad_data_parser.py for full optimization).
 - VOC/reviews/star ratings/pain points/complaints: route to `amazon-review-voc-analysis-v3`.
 - Listing writing or optimization: route to `amazon-listing-v2`.
 - Listing audit/Rufus/COSMO/query intent: route to `listing-rufus-cosmo-audit`.

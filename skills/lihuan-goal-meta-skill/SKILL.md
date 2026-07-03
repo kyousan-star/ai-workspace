@@ -38,7 +38,7 @@ Every final goal must include:
 
 Before drafting the goal, classify the task and name the likely skill route in `建议调用的技能`.
 
-- Amazon ads, PPC, ACOS, ROAS, search terms, SP/SB/SD: `amazon-ad-optimizer` or `amazon-ads-analysis`; read `references/amazon-workflows.md`.
+- Amazon ads, PPC, ACOS, ROAS, search terms, SP/SB/SD: `amazon-ad-optimizer` (含快读模式，原 amazon-ads-analysis 已并入); read `references/amazon-workflows.md`.
 - Amazon VOC, reviews, complaints, pain points: `amazon-review-voc-analysis-v3`; read `references/amazon-workflows.md`.
 - Amazon listing creation or audit: `amazon-listing-v2` or `listing-rufus-cosmo-audit`; read `references/amazon-workflows.md`.
 - Amazon category, product development, competitor traffic, SIF, traffic battle: `amazon-category-analysis`, `amazon-product-dev`, or `competitor-traffic-battle`; read `references/amazon-workflows.md`.
@@ -46,7 +46,7 @@ Before drafting the goal, classify the task and name the likely skill route in `
 - General coding, app, website, game, bug fix, UI polish, automation: use Codex engineering defaults; read `references/software-goals.md`.
 - Spreadsheets or CSV/XLSX analysis: `spreadsheets`; read `references/report-deliverables.md`.
 
-If multiple routes apply, list the minimal sequence, for example: `amazon-ads-analysis -> amazon-report-design -> spreadsheets`.
+If multiple routes apply, list the minimal sequence, for example: `amazon-ad-optimizer -> amazon-report-design -> spreadsheets`.
 
 ## Lihuan Defaults
 

@@ -58,7 +58,6 @@ install_skill zach-product-research
 install_skill amazon-category-analysis
 install_skill amazon-listing-v2
 install_skill amazon-review-voc-analysis-v3
-install_skill amazon-ads-analysis
 install_skill amazon-ad-optimizer
 # amazon-product-dev 已 deprecated（2026-07-02），迁至 archive/skills/，能力并入 zach-product-research + sops/amazon-decision-thresholds.md
 install_skill reddit-voc-analysis-v2
