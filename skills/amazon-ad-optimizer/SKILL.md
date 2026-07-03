@@ -1,13 +1,23 @@
 ---
 name: amazon-ad-optimizer
-description: 优化自己的亚马逊PPC广告时触发。触发词：广告优化、ACOS优化、广告诊断、广告复盘、广告打法、PPC竞价调整、否词策略、广告结构搭建、关键词分层、广告日志、广告预算分配、SP/SB/SD广告、自动广告、手动广告、海王打法、捡漏广告。上传自己的广告数据文件（CSV/Excel）时也触发。覆盖完整的广告数据清洗→指标量化分层→256种矩阵诊断→策略匹配→执行SOP→效果监测→复盘日志全流程。不适用于：竞品广告分析（用 competitor-traffic-battle）；只看SP报表数据无需完整优化（用 amazon-ads-analysis）。
-last_verified: 2026-06-03
-staleness_risk: high
+description: 优化自己的亚马逊PPC广告时触发。触发词：广告优化、ACOS优化、广告诊断、广告复盘、广告打法、PPC竞价调整、否词策略、广告结构搭建、关键词分层、广告日志、广告预算分配、SP/SB/SD广告、自动广告、手动广告、海王打法、捡漏广告。上传自己的广告数据文件（CSV/Excel）时也触发。覆盖完整的广告数据清洗→指标量化分层→30场景矩阵诊断→具体竞价建议→策略匹配→执行SOP→PDCA动作核验→复盘日志全流程，US站为主，阈值毛利驱动并区分新品期/成长期/稳定期。不适用于：竞品广告分析（用 competitor-traffic-battle）；只看SP报表数据无需完整优化（用 amazon-ads-analysis）。
+last_verified: 2026-07-03
+staleness_risk: medium
 ---
 
-# Amazon PPC 广告智能优化系统
+# Amazon PPC 广告智能优化系统 (US站)
 
-> 完整工作流: 数据解析 → 指标量化分层 → 矩阵组合诊断 → 策略匹配 → 打法SOP → 广告日志
+> 完整工作流: 数据解析 → 指标量化分层 → 矩阵组合诊断 → 竞价建议 → 策略匹配 → 打法SOP → 动作日志(PDCA闭环)
+
+## 使用前必读（每次分析的三个必要输入）
+
+任何诊断动作之前，先向用户确认三件事，缺一不可：
+
+1. **毛利率**（= 盈亏ACOS）: 所有 ACOS/ROAS 判断的基准。公式 `毛利率 = (售价×(1-佣金率) - 产品成本 - FBA费) / 售价`
+2. **生命周期阶段** `launch / growth / stable`: 决定否词门槛和 ACOS 容忍度（新品期目标是收录+排名+单量，不是 ACOS，见下文"新品期模式"）
+3. **核心保护词根**: 产品的核心大词（如 2-4 个词根），任何情况下不进入否定候选
+
+所有阈值的唯一事实源是 `ppc_config.json`（毛利驱动、分阶段），诊断规则的唯一事实源是 `references/diagnosis_rules.json`。修改阈值改 config，不要改代码或文档里的数字。
 
 ## 快速导航
 
@@ -60,8 +70,43 @@ Step 7: 汇总报告 → 生成分析结果和优化建议
 
 运行方式:
 ```bash
-python scripts/ad_data_parser.py /path/to/uploaded/ad_data.csv
+python scripts/ad_data_parser.py <广告数据文件> \
+  --margin 0.35 \            # 必传: 产品毛利率(=盈亏ACOS)
+  --price 44.99 \            # 建议传: 客单价，传入后输出每个词的具体建议竞价
+  --phase launch \           # 必传: launch(新品1-2月)/growth(2-4月)/stable(5月+)
+  --core-terms "词根1,词根2" \ # 建议传: 核心保护词根，永不否定
+  --attribution 7            # SP报表默认7天归因；SB/SD报表用14
 ```
+
+输出: Excel(完整分析/否定候选/放大候选/上期动作核验/数据概览) + `ad_actions_log.json`(PDCA动作日志，自动写在数据文件同目录)。
+
+### 竞价建议公式
+
+```
+建议竞价 = 盈亏ACOS × 客单价 × 平滑CVR × phase系数
+平滑CVR = (该词订单 + k×整体CVR) / (该词点击 + k)   # k=10，贝叶斯平滑防小样本失真
+phase系数: launch 1.3 / growth 1.1 / stable 1.0    # 新品期为抢位适度溢价
+单次调价幅度限制在当前CPC的±50%，防止数据抖动导致激进调价
+```
+
+诊断输出必须给出具体数字（"提高竞价至$1.24"），不允许只说"提高竞价"。
+
+### 新品期模式 (--phase launch)
+
+上架 1-2 个月内的产品必须用 launch 模式，与稳定期的区别：
+
+| 项目 | launch | stable | 原因 |
+|------|--------|--------|------|
+| 否定门槛 | ≥20次点击 或 花费≥3×盈亏CPA | ≥10次点击 | 新品CVR天然偏低，过早否词会砍死潜力词 |
+| ACOS容忍 | 盈亏线×2.0 | 盈亏线×1.0 | 新品期买收录买排名，亏损是投资 |
+| 目标函数 | 收录+排名+单量 | 利润 | 不要用ACOS高低评判新品期广告 |
+| 竞价系数 | ×1.3 | ×1.0 | 抢首页坑位积累权重 |
+
+新品期报告结构调整: 把"关键词收录数/核心词排名变化/订单趋势"放在ACOS之前汇报。
+
+### PDCA 闭环（效益复利的关键）
+
+每次运行 parser 会自动: ①核验上一轮推荐动作的实际效果（否定是否止血、放大是否增单），输出"上期动作核验"sheet；②把本轮推荐动作写入 `ad_actions_log.json`。**每轮分析必须先看核验结果再给新建议**——上轮放大的词没增单，先找原因（坑位没到位/竞价没执行/Listing问题），不要盲目叠加新动作。
 
 ---
 
@@ -130,7 +175,7 @@ python scripts/ad_data_parser.py /path/to/uploaded/ad_data.csv
 | 偏高 | 盈亏ACOS ~ 盈亏ACOS×1.5 | 微利或微亏 |
 | 过高 | > 盈亏ACOS×1.5 | 严重亏损 |
 
-> 阈值应根据具体类目和产品情况动态调整。以上为通用默认值。
+> 以上表格仅为速查展示。**生效阈值以 `ppc_config.json` 为准**（含 launch/growth/stable 三档否词门槛与ACOS容忍系数），改阈值只改 config。
 
 ---
 
@@ -161,7 +206,7 @@ python scripts/ad_data_parser.py /path/to/uploaded/ad_data.csv
 | 9 | 低曝光_低点击_高转化 | 🔎 小宝藏 | 提高竞价+确认开广告 |
 | 10 | 低点击_0转化 | ⏸️ 观察 | 数据不足暂不调整 |
 
-每种场景的完整诊断规则(问题分析/广告目的/广告策略/调整后结果)见 `references/diagnosis_rules.md`。
+每种场景的完整诊断规则(问题分析/广告目的/广告策略/调整后结果)见 `references/diagnosis_rules.md`；机器可读版为 `references/diagnosis_rules.json`（parser 直接加载的单一事实源，30种搜索词场景全量实现）。两个文件需同步维护。
 
 #### 维度二: 投放对象分析 (10种场景)
 
@@ -247,7 +292,20 @@ ACOS: >均值×2红 | 均值~均值×2橙 | 均值×0.5~均值黄 | <均值×0.5
 1. 乞丐捡漏法 | 2. 品牌蹭流法 | 3. 错词法 | 4. 西班牙语法
 5. ASIN定位4组法 | 6. 类目定位 | 7. 竞品进攻法 | 8. 关键词调研法
 9. Ranking收录法 | 10. 广告霸屏防御 | 11. 海王打法 | 12. 标签打法
-13. Coupon刷广告法 | 14. 预算递增法 | 15. 马甲法 | 16. 自动广告拆分法
+13. Coupon冲权重法⚠️ | 14. 预算递增法 | 15. 马甲法🚨 | 16. 自动广告拆分法
+
+> 推荐打法时必须带出 SOP 里的风险等级：⚠️灰帽需提示代价，🚨高风险(马甲法)默认不推荐。
+
+### Sorftime MCP 联动（投放前的市场锚点）
+
+本机已配置 Sorftime MCP，投放决策前用它拉市场数据做锚点，不要凭空定竞价和选词：
+
+| 场景 | 工具 | 用途 |
+|------|------|------|
+| 拓词 | `competitor_product_keywords` / `product_traffic_terms` | 拉竞品流量词，补自己词库盲区 |
+| 竞价锚点 | `keyword_detail` / `keyword_list` | 看词的竞价参考和竞争度，校准建议竞价 |
+| 打谁 | `keyword_search_results` + `product_variations` | 找Review少/评分低/价格高的弱竞品做ASIN定位 |
+| 排名验证 | `product_ranking_trend_by_keyword` | 核验核心词自然排名是否随广告提升(新品期北极星指标) |
 
 ---
 
@@ -307,7 +365,13 @@ ACOS: >均值×2红 | 均值~均值×2橙 | 均值×0.5~均值黄 | <均值×0.5
 
 ## 6. 广告日志生成
 
-当用户要求生成广告日志或进行复盘时，执行 `scripts/ad_log_generator.py`。
+当用户要求生成广告日志或进行复盘时，执行 `scripts/ad_log_generator.py`：
+
+```bash
+python scripts/ad_log_generator.py <分析结果.xlsx> --mode weekly --break-even 0.35
+```
+
+`--break-even` 必传产品真实毛利率，否则盈亏判断按默认35%并告警。
 
 ### 广告日志模板
 
@@ -420,23 +484,25 @@ SKU: [SKU]
 ### 收到广告数据文件时的完整流程
 
 ```
-1. 读取skill文件 → 本SKILL.md
-2. 运行数据解析 → scripts/ad_data_parser.py
-3. 加载诊断规则 → references/diagnosis_rules.md (如需30种场景详细规则)
-4. 加载打法SOP → references/ad_plays_sop.md (如需推荐具体打法)
-5. 生成分析报告 → 输出Excel/docx报告
-6. 生成广告日志 → scripts/ad_log_generator.py
+1. 向用户确认三个必要输入: 毛利率 / 生命周期阶段 / 核心保护词根
+   (缺客单价则一并问，用于竞价建议)
+2. 运行数据解析 → scripts/ad_data_parser.py --margin X --price Y --phase Z --core-terms "..."
+3. 先看"上期动作核验"结果 → 上轮动作没生效的先找原因
+4. 加载诊断规则 → references/diagnosis_rules.md (如需场景详细规则)
+5. 加载打法SOP → references/ad_plays_sop.md (推荐打法必须带风险等级)
+6. 生成分析报告 → 新品期把收录/排名/单量放在ACOS之前汇报
+7. 生成广告日志 → scripts/ad_log_generator.py --break-even X
 ```
 
 ### 收到广告诊断咨询时
 
 ```
-1. 确认产品基本信息 (售价/成本/FBA费/佣金率) → 计算盈亏ACOS
-2. 确认广告数据 (曝光/点击/订单/ACOS)
-3. 判定各指标档位 → 确定矩阵组合
+1. 确认产品基本信息 (售价/成本/FBA费/佣金率) → 计算盈亏ACOS = 毛利率
+2. 确认生命周期阶段 → launch/growth/stable (阈值差别很大，不能跳过)
+3. 确认广告数据 (曝光/点击/订单/ACOS) → 判定矩阵组合
 4. 读取 references/diagnosis_rules.md 查找对应场景
-5. 输出: 问题分析 + 广告目的 + 广告策略 + 预期效果
-6. 推荐具体打法SOP
+5. 输出: 问题分析 + 广告目的 + 广告策略(含具体建议竞价数字) + 预期效果
+6. 推荐具体打法SOP(带风险等级)
 ```
 
 ### 关键词优化逻辑

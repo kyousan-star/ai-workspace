@@ -1,11 +1,13 @@
 ---
 name: amazon-ads-analysis
-description: 上传SP广告报表文件做快速交叉分析时触发。触发词：SP广告报表分析、搜索词报告、ACOS/ROAS诊断、否定词挖掘、加投词筛选、广告与自然流量内卷、分时竞价。适用于已有报表文件、只需快速读数和诊断的场景。不适用于：需要完整广告优化SOP和执行方案（用 amazon-ad-optimizer）；分析竞品广告数据（用 competitor-traffic-battle）。
-last_verified: 2026-06-03
+description: 上传SP广告报表文件做快速交叉分析时触发。触发词：SP广告报表分析、搜索词报告、ACOS/ROAS诊断、否定词挖掘、加投词筛选、广告与自然流量内卷、分时竞价。适用于已有报表文件、只需快速读数和诊断的场景，US站为主，支持亚马逊原生导出报表，阈值毛利驱动并与 amazon-ad-optimizer 共享。不适用于：需要完整广告优化SOP和执行方案（用 amazon-ad-optimizer）；分析竞品广告数据（用 competitor-traffic-battle）。
+last_verified: 2026-07-03
 staleness_risk: medium
 ---
 
-# 亚马逊SP广告分析 (Amazon Sponsored Products Analysis)
+# 亚马逊SP广告分析 (Amazon Sponsored Products Analysis) — US站快读模式
+
+> 定位: amazon-ad-optimizer 的轻量前置——只需快速读数和诊断时用本skill；要完整优化SOP、竞价建议、PDCA闭环时用 optimizer。两者共用同一套毛利驱动阈值(`../amazon-ad-optimizer/ppc_config.json`)。
 
 ## 适用场景
 
@@ -55,8 +57,8 @@ staleness_risk: medium
 └── 广告位效率：TOS vs ROS vs PP
 
 第三步：搜索词分析
-├── 高效词筛选：ROAS > 2.5 且有订单
-├── 零转化词：Clicks > 10 且 Orders = 0
+├── 高效词筛选：ROAS > 盈亏ROAS 且有订单
+├── 零转化词：达到当前生命周期否定门槛（见5.2）
 ├── SQP交叉：广告和自然都有订单 = 可降投
 └── 意图分类：品牌词/品类词/竞品词/长尾词
 
@@ -82,7 +84,7 @@ staleness_risk: medium
 | **广告流量占比** | 流量表现 + SP投放商品 | Ad Clicks / Total Sessions |
 | **广告订单占比** | 流量表现 + SP投放商品 | Ad Orders / Total Orders |
 | **内卷检测** | 广告搜索词 + SQP | 同词广告&自然都有单 |
-| **展示份额机会** | SP投放报告 | ROAS>2.5 且 Share<5% |
+| **展示份额机会** | SP投放报告 | ROAS>盈亏ROAS 且 Share<5% |
 | **真实盈亏** | 销售数据 + SP投放商品 | 净利润 vs 广告ACOS |
 
 ---
@@ -93,7 +95,9 @@ staleness_risk: medium
 # 基础指标
 ROAS = Sales / Spend
 ACOS = Spend / Sales × 100%
-盈亏线ACOS = 1 / (1 + 毛利率)  # 毛利率40% → 盈亏线71.4%
+盈亏ACOS = 毛利率 = (售价×(1-佣金率) - 产品成本 - FBA费) / 售价
+# 毛利率40% → 盈亏ACOS 40%（ACOS超过毛利率即广告亏损）
+盈亏ROAS = 1 / 盈亏ACOS  # 毛利率40% → 盈亏ROAS 2.5
 
 # 流量分析
 广告流量占比 = Ad_Clicks / Total_Sessions
@@ -109,45 +113,55 @@ ACOS = Spend / Sales × 100%
 
 ## 五、阈值参考
 
-### 5.1 效率判断
+> 阈值唯一事实源: `../amazon-ad-optimizer/ppc_config.json`（毛利驱动 + 生命周期分档），与 amazon-ad-optimizer 完全一致。以下为按盈亏线表达的速查，**分析前必须先拿到产品毛利率**。
+
+### 5.1 效率判断（以盈亏ACOS=毛利率为基准）
 
 | 指标 | 健康 | 警告 | 危险 |
 |------|------|------|------|
-| ROAS | >2.5 | 1.5-2.5 | <1.5 |
-| ACOS | <40% | 40-60% | >60% |
-| CVR | >8% | 5-8% | <5% |
+| ACOS | < 盈亏线 | 盈亏线 ~ 盈亏线×1.5 | > 盈亏线×1.5 |
+| ROAS | > 盈亏ROAS | 盈亏ROAS×0.67 ~ 盈亏ROAS | < 盈亏ROAS×0.67 |
+| CVR | >15% | 5-15% | <5% |
 | Buy Box | >95% | 90-95% | <90% |
 
-### 5.2 否定词条件
+### 5.2 否定词条件（分生命周期，与 optimizer 一致）
 
 ```
-Clicks >= 10 AND Orders = 0 → 否定候选
-Clicks >= 20 AND ACOS > 100% → 否定候选
+新品期(launch, 上架1-2月):  Clicks >= 20 且 Orders = 0，或花费 >= 3×盈亏CPA
+成长期(growth):            Clicks >= 15 且 Orders = 0，或花费 >= 2×盈亏CPA
+稳定期(stable):            Clicks >= 10 且 Orders = 0
+核心保护词根: 任何阶段都不否定，零转化先查Listing/价格/竞品
+盈亏CPA = 毛利率 × 售价
 ```
 
 ### 5.3 加投词条件
 
 ```
-ROAS >= 2.5 AND Orders >= 2 → 加投候选
-ROAS >= 2.0 AND Impression_Share < 5% → 高优加投
+ROAS >= 盈亏ROAS AND Orders >= 1(新品期)/2(成长期后) → 加投候选
+ROAS >= 盈亏ROAS×0.8 AND Impression_Share < 5% → 高优加投(高效率低份额)
 ```
+
+### 5.4 新品期(上架1-2月)特别口径
+
+- 目标函数是 **收录+排名+单量**，不是 ACOS；ACOS 容忍到盈亏线×2
+- 数据按周分段看趋势（CVR是否爬坡、CPC是否下降），不要合并两周当一个快照
+- 单量少时 CVR/ROAS 统计噪音大，任何词级判断至少 10 次点击起步
 
 ---
 
-## 六、市场特殊性
+## 六、市场特殊性（默认US站）
 
-### 阿联酋 (AE)
+### 美国 (US) — 本skill默认市场
 
-- 时区: GST (UTC+4)
-- 工作日: 周日至周四
-- 周末: 周五(伊斯兰祈祷日)、周六
-- 高效时段: 20:00-23:00, 09:00-11:00
+- 时区: 广告报表默认 PST（太平洋时间）；跨美东美西4小时时差，时段分析以PST口径解读
+- 工作日: 周一至周五；周末流量结构偏休闲品类
+- 高效时段: 通常 18:00-22:00 当地时间，具体以自己数据为准
+- 归因窗口: SP报表7天，SB/SD报表14天，交叉分析必须统一口径
+- 大促节奏: Prime Day(7月)、返校季(8月)、黑五网一(11月)、圣诞(12月)，大促前2-3周CPC开始上涨
 
-### 美国 (US)
+### 其他市场
 
-- 时区: PST/EST
-- 工作日: 周一至周五
-- 高效时段: 晚间20:00-22:00
+非US站点(如AE)另行确认时区、工作日结构（AE周末为周五周六）和货币，再套用本流程。
 
 ---
 
@@ -195,39 +209,21 @@ ROAS >= 2.0 AND Impression_Share < 5% → 高优加投
 
 ---
 
-## 八、Python分析代码片段
+## 八、分析脚本
 
-### 8.1 读取Excel（注意列名）
+`scripts/analyze_ads.py` 支持亚马逊US广告后台**原生导出报表**（Search Term Report / Advertised Product Report / Business Report，CSV或XLSX），字段中英文自动映射：
 
-```python
-import pandas as pd
-
-# SP投放商品报告（header在第2行）
-df = pd.read_excel('SP广告报告.xlsx', 
-                   sheet_name='SP投放商品（W）-更前两周', 
-                   header=1)
-
-# 过滤产品和站点
-df_product = df[(df['PN'] == 'SAST102') & (df['Market-销售'] == 'AE')]
+```bash
+python scripts/analyze_ads.py \
+  --search-terms 搜索词报告.csv \
+  --advertised-product 广告商品报告.csv \   # 可选
+  --business 业务报告.csv \                # 可选，用于广告流量占比
+  --margin 0.35 --phase launch
 ```
 
-### 8.2 计算ACOS/ROAS
+输出: 整体指标、匹配类型效率、高效词/否定候选清单（阈值随 --margin 和 --phase 动态推导）。
 
-```python
-total_spend = df_product['Spend'].sum()
-total_sales = df_product['Sales'].sum()
-acos = total_spend / total_sales * 100 if total_sales > 0 else float('inf')
-roas = total_sales / total_spend if total_spend > 0 else 0
-```
-
-### 8.3 时段分析
-
-```python
-# 注意：时间列可能是datetime.time类型
-df['Hour'] = df['开始时间'].apply(lambda x: x.hour if hasattr(x, 'hour') else 0)
-hourly = df.groupby('Hour').agg({'Spend': 'sum', 'Sales': 'sum'})
-hourly['ROAS'] = hourly['Sales'] / hourly['Spend']
-```
+若是公司ERP格式报表（含PN/Market列的多sheet汇总表），列名不标准，让 Claude 直接读文件按第二节流程手工分析。
 
 ---
 
@@ -256,7 +252,8 @@ hourly['ROAS'] = hourly['Sales'] / hourly['Spend']
 
 ## 十、相关资源
 
-- 分析报告示例: [ST102_广告深度分析报告.md](../../ST102_广告深度分析报告.md)
+- 完整优化流程（矩阵诊断/竞价建议/PDCA闭环）: `../amazon-ad-optimizer/SKILL.md`
+- 共享阈值配置: `../amazon-ad-optimizer/ppc_config.json`
 
 ---
 

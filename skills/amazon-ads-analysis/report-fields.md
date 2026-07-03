@@ -65,11 +65,12 @@ SP-ASIN        → ASIN定向
 | Match Type | 匹配类型 |
 | Spend/Sales/Orders | 词级别效率 |
 
-**搜索词分析逻辑**：
+**搜索词分析逻辑**（阈值随毛利率和生命周期变化，见 SKILL.md 第五节）：
 ```
-高效词: Orders > 0 AND ROAS > 2.5
-否定词: Clicks >= 10 AND Orders = 0
-观察词: Clicks < 10 AND Orders = 0 (数据不足)
+高效词: Orders > 0 AND ROAS > 盈亏ROAS(=1/毛利率)
+否定词: 零转化且达到当前阶段否定门槛(新品期20次点击/稳定期10次)
+观察词: 未达门槛的零转化词 (数据不足)
+核心保护词根: 任何阶段不否定
 ```
 
 ---

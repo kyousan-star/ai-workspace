@@ -1,236 +1,218 @@
+#!/usr/bin/env python3
 """
-亚马逊SP广告分析工具包
-Amazon SP Ads Analysis Toolkit
+亚马逊SP广告快读分析 (US站)
+支持亚马逊广告后台原生导出报表(CSV/XLSX)，字段中英文自动映射。
 
-使用方法:
-1. 将此文件放在与报表相同的目录
-2. 修改 PRODUCT_PN 和 MARKET 变量
-3. 运行: python3 analyze_ads.py
+用法:
+  python3 analyze_ads.py --search-terms 搜索词报告.csv --margin 0.35 --phase launch
+参数:
+  --search-terms <file>        搜索词报告(必传)
+  --advertised-product <file>  广告商品报告(可选，算广告整体效率)
+  --business <file>            业务报告(可选，算广告流量/订单占比)
+  --margin 0.35                毛利率=盈亏ACOS(必传，否则默认0.35并告警)
+  --phase launch|growth|stable 生命周期阶段(默认stable)
+  --core-terms "a,b"           核心保护词根，永不进入否定候选
 """
 
+import argparse
+import os
+import sys
 import pandas as pd
-import warnings
-warnings.filterwarnings('ignore')
 
-# ========== 配置 ==========
-PRODUCT_PN = 'SAPH101'  # 产品PN
-MARKET = 'AE'           # 站点
+# 与 amazon-ad-optimizer/ppc_config.json 保持一致的阶段阈值
+PHASES = {
+    "launch": {"negation_min_clicks": 20, "negation_max_spend_x_be_cpa": 3.0, "scale_up_min_orders": 1},
+    "growth": {"negation_min_clicks": 15, "negation_max_spend_x_be_cpa": 2.0, "scale_up_min_orders": 2},
+    "stable": {"negation_min_clicks": 10, "negation_max_spend_x_be_cpa": 1.5, "scale_up_min_orders": 2},
+}
 
-# 报表文件名（根据实际情况修改）
-FILE_SP_REPORT = '广告报告数据/SP广告报告 .xlsx'
-FILE_SEARCH_TERMS = '广告报告数据/搜索词报告.xlsx'
-FILE_SHOPPING_TIME = '广告报告数据/购物时间分析 .xlsx'
-FILE_TRAFFIC = '广告报告数据/流量表现.xlsx'
-
-# ========== 分析函数 ==========
-
-def analyze_traffic():
-    """分析流量表现报告"""
-    print("\n" + "="*60)
-    print("【流量表现分析】")
-    print("="*60)
-    
-    try:
-        df = pd.read_excel(FILE_TRAFFIC, sheet_name='Sheet1', header=0)
-        df_p = df[(df['PN'] == PRODUCT_PN) & (df['Market-销售'] == MARKET)]
-        
-        total_sessions = df_p['Sessions - Total'].sum()
-        total_units = df_p['Units Ordered'].sum()
-        avg_cvr = df_p['Unit Session Percentage'].mean() * 100
-        avg_buybox = df_p['Featured Offer (Buy Box) Percentage'].mean() * 100
-        
-        print(f"总Sessions: {total_sessions:,.0f}")
-        print(f"总订单: {total_units:,.0f}")
-        print(f"平均CVR: {avg_cvr:.2f}%")
-        print(f"平均Buy Box: {avg_buybox:.1f}%")
-        
-        return total_sessions, total_units
-    except Exception as e:
-        print(f"错误: {e}")
-        return 0, 0
+FIELDS = {
+    "impressions": ["impressions", "曝光量", "展示次数", "展现次数"],
+    "clicks": ["clicks", "点击量", "点击次数"],
+    "spend": ["spend", "花费", "cost"],
+    "sales": ["7 day total sales", "7 day total sales ($)", "7天总销售额",
+              "14 day total sales", "sales", "销售额"],
+    "orders": ["7 day total orders (#)", "7 day total orders", "7天总订单量",
+               "14 day total orders (#)", "orders", "订单量"],
+    "search_term": ["customer search term", "客户搜索词", "搜索词"],
+    "match_type": ["match type", "匹配类型"],
+    "campaign": ["campaign name", "广告活动名称", "广告活动"],
+    "sessions": ["sessions - total", "sessions", "访客数"],
+    "units": ["units ordered", "订单数", "总订单"],
+}
 
 
-def analyze_sp_performance():
-    """分析SP广告效率"""
-    print("\n" + "="*60)
-    print("【SP广告效率分析】")
-    print("="*60)
-    
-    try:
-        df = pd.read_excel(FILE_SP_REPORT, 
-                          sheet_name='SP投放商品（W）-更前两周', 
-                          header=1)
-        df_p = df[(df['PN'] == PRODUCT_PN) & (df['Market-销售'] == MARKET)]
-        
-        total_spend = df_p['Spend'].sum()
-        total_sales = df_p['Sales'].sum()
-        total_orders = df_p['Orders'].sum()
-        total_clicks = df_p['Clicks'].sum()
-        
-        acos = total_spend / total_sales * 100 if total_sales > 0 else float('inf')
-        roas = total_sales / total_spend if total_spend > 0 else 0
-        cvr = total_orders / total_clicks * 100 if total_clicks > 0 else 0
-        
-        print(f"总花费: AED {total_spend:,.0f}")
-        print(f"总销售: AED {total_sales:,.0f}")
-        print(f"总订单: {total_orders:.0f}")
-        print(f"ACOS: {acos:.1f}%")
-        print(f"ROAS: {roas:.2f}")
-        print(f"广告CVR: {cvr:.2f}%")
-        
-        return total_clicks, total_orders
-    except Exception as e:
-        print(f"错误: {e}")
-        return 0, 0
+def read_any(path):
+    ext = os.path.splitext(path)[1].lower()
+    if ext in ('.xlsx', '.xls'):
+        return pd.read_excel(path)
+    for enc in ('utf-8-sig', 'utf-8', 'gbk', 'latin1'):
+        try:
+            df = pd.read_csv(path, encoding=enc)
+            if len(df.columns) > 1:
+                return df
+        except Exception:
+            continue
+    raise ValueError(f"无法读取: {path}")
 
 
-def analyze_match_type():
-    """分析匹配类型效率"""
-    print("\n" + "="*60)
-    print("【匹配类型效率】")
-    print("="*60)
-    
-    try:
-        df = pd.read_excel(FILE_SP_REPORT, 
-                          sheet_name='SP无效花费（W）-更前两周', 
-                          header=1)
-        df_p = df[(df['PN'] == PRODUCT_PN) & (df['Market-销售角度'] == MARKET)]
-        
-        by_match = df_p.groupby('Match Type').agg({
-            'Spend': 'sum',
-            'Sales': 'sum',
-            'Orders': 'sum'
-        }).reset_index()
-        
-        by_match['ROAS'] = by_match['Sales'] / by_match['Spend']
-        by_match['Spend%'] = by_match['Spend'] / by_match['Spend'].sum() * 100
-        
-        print(f"{'Match Type':<12} {'Spend%':>8} {'ROAS':>8}")
-        print("-"*30)
-        for _, row in by_match.sort_values('ROAS', ascending=False).iterrows():
-            print(f"{row['Match Type']:<12} {row['Spend%']:>7.1f}% {row['ROAS']:>8.2f}")
-    except Exception as e:
-        print(f"错误: {e}")
+def map_columns(df):
+    """精确匹配优先，其次子串匹配；每个标准字段只映射一次"""
+    df.columns = [str(c).strip().lower() for c in df.columns]
+    cols = list(df.columns)
+    rename, used = {}, set()
+    for std, aliases in FIELDS.items():
+        hit = None
+        for a in aliases:
+            a = a.lower()
+            exact = [c for c in cols if c == a and c not in used]
+            if exact:
+                hit = exact[0]
+                break
+        if not hit:
+            for a in aliases:
+                a = a.lower()
+                sub = [c for c in cols if a in c and c not in used]
+                if sub:
+                    hit = sub[0]
+                    break
+        if hit:
+            rename[hit] = std
+            used.add(hit)
+    df = df.rename(columns=rename)
+    df = df.loc[:, ~df.columns.duplicated()]
+    for col in ('spend', 'sales'):
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col].astype(str).str.replace(r'[$,€£%]', '', regex=True),
+                                    errors='coerce').fillna(0.0)
+    for col in ('impressions', 'clicks', 'orders', 'sessions', 'units'):
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+    return df
 
 
-def analyze_search_terms():
-    """分析搜索词效率"""
-    print("\n" + "="*60)
-    print("【搜索词分析】")
-    print("="*60)
-    
-    try:
-        df = pd.read_excel(FILE_SEARCH_TERMS, 
-                          sheet_name='广告搜索词（W）-更前两周', 
-                          header=1)
-        df_p = df[(df['PN'] == PRODUCT_PN) & (df['Market-销售'] == MARKET)]
-        
-        by_term = df_p.groupby('客户搜索词').agg({
-            'Clicks': 'sum',
-            'Spend': 'sum',
-            'Sales': 'sum',
-            'Orders': 'sum'
-        }).reset_index()
-        
-        by_term['ROAS'] = by_term['Sales'] / by_term['Spend']
-        by_term['ROAS'] = by_term['ROAS'].fillna(0)
-        
-        # 高效词
-        high_eff = by_term[(by_term['ROAS'] >= 2.5) & (by_term['Orders'] >= 1)]
-        high_eff = high_eff.sort_values('ROAS', ascending=False)
-        
-        print("\n--- 高效词 (ROAS >= 2.5) ---")
-        print(f"{'Search Term':<30} {'Orders':>6} {'ROAS':>8}")
-        for _, row in high_eff.head(10).iterrows():
-            term = row['客户搜索词'][:28]
-            print(f"{term:<30} {row['Orders']:>6.0f} {row['ROAS']:>8.2f}")
-        
-        # 否定候选
-        neg = by_term[(by_term['Clicks'] >= 10) & (by_term['Orders'] == 0)]
-        neg = neg.sort_values('Spend', ascending=False)
-        
-        print("\n--- 否定候选 (Clicks>=10, Orders=0) ---")
-        print(f"{'Search Term':<30} {'Clicks':>6} {'Spend':>8}")
-        for _, row in neg.head(10).iterrows():
-            term = row['客户搜索词'][:28]
-            print(f"{term:<30} {row['Clicks']:>6.0f} {row['Spend']:>8.0f}")
-            
-    except Exception as e:
-        print(f"错误: {e}")
-
-
-def analyze_hourly():
-    """分析时段效率"""
-    print("\n" + "="*60)
-    print("【时段效率分析】")
-    print("="*60)
-    
-    try:
-        df = pd.read_excel(FILE_SHOPPING_TIME, 
-                          sheet_name='SP广告活动By Hour-更前两周', 
-                          header=1)
-        df_p = df[(df['PN'] == PRODUCT_PN) & (df['Market-销售'] == MARKET)]
-        
-        # 提取小时
-        df_p = df_p.copy()
-        df_p['Hour'] = df_p['开始时间'].apply(lambda x: x.hour if hasattr(x, 'hour') else 0)
-        
-        by_hour = df_p.groupby('Hour').agg({
-            '花费': 'sum',
-            '7天总销售额': 'sum',
-            '7天总订单数(#)': 'sum'
-        }).reset_index()
-        by_hour.rename(columns={'花费': 'Spend', '7天总销售额': 'Sales', '7天总订单数(#)': 'Orders'}, inplace=True)
-        
-        by_hour['ROAS'] = by_hour['Sales'] / by_hour['Spend']
-        
-        # 最佳时段
-        best = by_hour.nlargest(5, 'ROAS')
-        print("\n--- 最佳时段 (Top 5 ROAS) ---")
-        print(f"{'Hour':>6} {'ROAS':>8} {'Orders':>8}")
-        for _, row in best.iterrows():
-            print(f"{int(row['Hour']):>6} {row['ROAS']:>8.2f} {row['Orders']:>8.0f}")
-        
-        # 最差时段
-        worst = by_hour[by_hour['Spend'] > 0].nsmallest(5, 'ROAS')
-        print("\n--- 最差时段 (Bottom 5 ROAS) ---")
-        print(f"{'Hour':>6} {'ROAS':>8} {'Spend':>8}")
-        for _, row in worst.iterrows():
-            print(f"{int(row['Hour']):>6} {row['ROAS']:>8.2f} {row['Spend']:>8.0f}")
-            
-    except Exception as e:
-        print(f"错误: {e}")
+def line(title):
+    print(f"\n{'='*60}\n【{title}】\n{'='*60}")
 
 
 def main():
-    """主分析流程"""
-    print("="*60)
-    print(f"亚马逊SP广告分析 - {PRODUCT_PN} ({MARKET})")
-    print("="*60)
-    
-    # 1. 流量分析
-    sessions, units = analyze_traffic()
-    
-    # 2. SP效率分析
-    clicks, orders = analyze_sp_performance()
-    
-    # 3. 广告流量占比
-    if sessions > 0 and clicks > 0:
-        print(f"\n广告流量占比: {clicks/sessions*100:.1f}%")
-        print(f"广告订单占比: {orders/units*100:.1f}%")
-    
-    # 4. 匹配类型分析
-    analyze_match_type()
-    
-    # 5. 搜索词分析
-    analyze_search_terms()
-    
-    # 6. 时段分析
-    analyze_hourly()
-    
-    print("\n" + "="*60)
-    print("分析完成！")
-    print("="*60)
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--search-terms", required=True)
+    ap.add_argument("--advertised-product", default=None)
+    ap.add_argument("--business", default=None)
+    ap.add_argument("--margin", type=float, default=None)
+    ap.add_argument("--phase", choices=list(PHASES), default="stable")
+    ap.add_argument("--core-terms", default="")
+    ap.add_argument("--price", type=float, default=None, help="客单价，用于盈亏CPA否定门槛")
+    args = ap.parse_args()
+
+    margin = args.margin
+    if margin is None:
+        margin = 0.35
+        print("[!] 警告: 未传 --margin，用默认35%。请传产品真实毛利率，否则判断不可信！")
+    be_roas = 1 / margin
+    be_cpa = margin * args.price if args.price else None
+    phase = PHASES[args.phase]
+    core_terms = [t.strip().lower() for t in args.core_terms.split(",") if t.strip()]
+
+    print(f"盈亏ACOS: {margin*100:.0f}% | 盈亏ROAS: {be_roas:.2f} | 阶段: {args.phase}"
+          f" | 保护词: {core_terms or '无'}")
+
+    # ---------- 搜索词报告 ----------
+    st = map_columns(read_any(args.search_terms))
+    need = {'search_term', 'clicks', 'spend'}
+    if not need.issubset(st.columns):
+        print(f"[!] 搜索词报告缺少字段: {need - set(st.columns)}")
+        sys.exit(1)
+
+    agg = {'clicks': 'sum', 'spend': 'sum'}
+    for c in ('impressions', 'sales', 'orders'):
+        if c in st.columns:
+            agg[c] = 'sum'
+    by_term = st.groupby('search_term').agg(agg).reset_index()
+    by_term['roas'] = (by_term['sales'] / by_term['spend']).where(by_term['spend'] > 0, 0) \
+        if 'sales' in by_term.columns else 0
+
+    line("整体指标(搜索词口径)")
+    t_spend, t_sales = by_term['spend'].sum(), by_term.get('sales', pd.Series([0])).sum()
+    t_clicks, t_orders = by_term['clicks'].sum(), by_term.get('orders', pd.Series([0])).sum()
+    acos = t_spend / t_sales if t_sales > 0 else float('inf')
+    print(f"花费 ${t_spend:,.2f} | 销售 ${t_sales:,.2f} | ACOS {acos*100:.1f}% (盈亏线{margin*100:.0f}%)")
+    print(f"点击 {t_clicks:,.0f} | 订单 {t_orders:,.0f} | CVR {t_orders/t_clicks*100:.1f}%" if t_clicks else "无点击")
+    if acos <= margin:
+        print("状态: ✅ 广告盈利")
+    elif acos <= margin * (2.0 if args.phase == 'launch' else 1.5):
+        print(f"状态: ⚠️ {args.phase}期容忍范围内，关注周趋势")
+    else:
+        print("状态: 🚨 超出容忍线，需优化")
+
+    # 匹配类型
+    if 'match_type' in st.columns and 'sales' in st.columns:
+        line("匹配类型效率")
+        mt = st.groupby('match_type').agg({'spend': 'sum', 'sales': 'sum', 'orders': 'sum'})
+        mt['ROAS'] = (mt['sales'] / mt['spend']).where(mt['spend'] > 0, 0)
+        mt['花费占比%'] = mt['spend'] / mt['spend'].sum() * 100
+        print(mt[['花费占比%', 'ROAS', 'orders']].round(2).sort_values('ROAS', ascending=False).to_string())
+
+    # 高效词
+    if 'orders' in by_term.columns:
+        line(f"高效词 (ROAS≥盈亏ROAS {be_roas:.2f} 且订单≥{phase['scale_up_min_orders']})")
+        hi = by_term[(by_term['roas'] >= be_roas) &
+                     (by_term['orders'] >= phase['scale_up_min_orders'])].sort_values('roas', ascending=False)
+        for _, r in hi.head(15).iterrows():
+            print(f"  {str(r['search_term'])[:40]:<42} 订单{r['orders']:>3.0f}  ROAS {r['roas']:.2f}")
+        if hi.empty:
+            print("  (无。新品期属正常，看词的点击和排名趋势)")
+
+        # 否定候选
+        gate_desc = f"点击≥{phase['negation_min_clicks']}" + \
+            (f" 或花费≥{phase['negation_max_spend_x_be_cpa']}×盈亏CPA(${phase['negation_max_spend_x_be_cpa']*be_cpa:.2f})" if be_cpa else "")
+        line(f"否定候选 ({args.phase}期门槛: 零转化且 {gate_desc})")
+        zero = by_term[by_term['orders'] == 0]
+        gate = zero['clicks'] >= phase['negation_min_clicks']
+        if be_cpa:
+            gate = gate | (zero['spend'] >= phase['negation_max_spend_x_be_cpa'] * be_cpa)
+        neg = zero[gate].sort_values('spend', ascending=False)
+        n_shown = 0
+        for _, r in neg.iterrows():
+            term = str(r['search_term'])
+            if any(ct in term.lower() for ct in core_terms):
+                print(f"  🛡️ {term[:40]:<40} 点击{r['clicks']:>3.0f} 花费${r['spend']:>7.2f}  保护词-禁否，查Listing/价格")
+            else:
+                print(f"  ❌ {term[:40]:<40} 点击{r['clicks']:>3.0f} 花费${r['spend']:>7.2f}")
+            n_shown += 1
+            if n_shown >= 20:
+                break
+        if neg.empty:
+            print("  (无达标否定候选)")
+        near = zero[(~gate) & (zero['clicks'] >= phase['negation_min_clicks'] * 0.5)]
+        if not near.empty:
+            print(f"  👀 另有{len(near)}个词接近门槛，下轮复查")
+
+    # ---------- 广告商品报告(可选) ----------
+    ad_clicks = ad_orders = None
+    if args.advertised_product:
+        ap_df = map_columns(read_any(args.advertised_product))
+        line("广告整体效率(广告商品报告)")
+        sp, sa = ap_df.get('spend', pd.Series([0])).sum(), ap_df.get('sales', pd.Series([0])).sum()
+        ad_clicks = ap_df.get('clicks', pd.Series([0])).sum()
+        ad_orders = ap_df.get('orders', pd.Series([0])).sum()
+        print(f"花费 ${sp:,.2f} | 销售 ${sa:,.2f} | ACOS {sp/sa*100:.1f}%" if sa > 0 else f"花费 ${sp:,.2f} | 无销售")
+
+    # ---------- 业务报告(可选) ----------
+    if args.business:
+        biz = map_columns(read_any(args.business))
+        line("流量结构(业务报告)")
+        sessions = biz.get('sessions', pd.Series([0])).sum()
+        units = biz.get('units', pd.Series([0])).sum()
+        print(f"总Sessions {sessions:,.0f} | 总订单 {units:,.0f}"
+              + (f" | 整体CVR {units/sessions*100:.1f}%" if sessions else ""))
+        if ad_clicks and sessions:
+            print(f"广告流量占比 {ad_clicks/sessions*100:.1f}% | 广告订单占比 "
+                  + (f"{ad_orders/units*100:.1f}%" if units else "N/A")
+                  + f" | 自然订单 {units - (ad_orders or 0):,.0f}")
+
+    print(f"\n{'='*60}\n分析完成。完整优化(竞价建议/PDCA闭环)用 amazon-ad-optimizer。\n{'='*60}")
 
 
 if __name__ == '__main__':

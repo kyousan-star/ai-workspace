@@ -1,0 +1,56 @@
+{
+  "_comment": "PPC 共享阈值配置 — amazon-ad-optimizer 与 amazon-ads-analysis 的唯一事实源。所有 ACOS/ROAS 类阈值由毛利率(margin)动态推导，不要写死。",
+  "market": "US",
+  "margin_default": 0.35,
+  "_margin_note": "盈亏ACOS = 毛利率 = (售价×(1-佣金率) - 产品成本 - FBA费) / 售价。盈亏ROAS = 1/盈亏ACOS。运行脚本时必须用 --margin 传入产品真实毛利率，此处仅为缺省值。",
+
+  "phases": {
+    "launch": {
+      "_desc": "新品期(上架1-2月)：目标是收录+排名+单量，不是ACOS。容忍度放宽，否词门槛提高。",
+      "negation_min_clicks": 20,
+      "negation_max_spend_x_be_cpa": 3.0,
+      "_negation_note": "零转化词满足 clicks>=20 或 花费>=3倍盈亏CPA 之一才进入否定候选",
+      "acos_tolerance_multiplier": 2.0,
+      "observe_max_clicks": 10,
+      "scale_up_min_orders": 1
+    },
+    "growth": {
+      "_desc": "成长期(2-4月)：扩词抢排名，ACOS 向盈亏线收敛。",
+      "negation_min_clicks": 15,
+      "negation_max_spend_x_be_cpa": 2.0,
+      "acos_tolerance_multiplier": 1.5,
+      "observe_max_clicks": 8,
+      "scale_up_min_orders": 2
+    },
+    "stable": {
+      "_desc": "稳定期(5月+)：利润导向，ACOS 必须守住盈亏线。",
+      "negation_min_clicks": 10,
+      "negation_max_spend_x_be_cpa": 1.5,
+      "acos_tolerance_multiplier": 1.0,
+      "observe_max_clicks": 5,
+      "scale_up_min_orders": 2
+    }
+  },
+
+  "impression_thresholds_kw": { "low": 500, "mid": 5000 },
+  "impression_thresholds_asin": { "low": 200, "mid": 2000 },
+  "click_thresholds": { "low": 5, "mid": 20 },
+  "ctr_thresholds": { "low": 0.002, "mid": 0.005 },
+  "cvr_thresholds": { "low": 0.05, "mid": 0.15 },
+  "acos_multipliers": { "excellent": 0.5, "good": 1.0, "high": 1.5 },
+
+  "bid_calc": {
+    "_desc": "建议竞价 = 盈亏ACOS × 客单价 × 平滑CVR × phase系数。CVR 用贝叶斯平滑防小样本失真：cvr_smoothed = (orders + k×整体CVR) / (clicks + k)",
+    "cvr_smoothing_k": 10,
+    "phase_bid_multiplier": { "launch": 1.3, "growth": 1.1, "stable": 1.0 },
+    "max_bid_change_pct": 0.5,
+    "_max_change_note": "单次调价幅度不超过当前CPC的±50%，防止数据抖动导致激进调价"
+  },
+
+  "us_market": {
+    "timezone": "PST (广告报表默认太平洋时间)",
+    "peak_hours": "18:00-22:00 当地时间",
+    "attribution_window_default": 7,
+    "_attribution_note": "SP报表用7天归因；SB/SD是14天。混合分析时必须统一口径，否则ACOS会被低估。"
+  }
+}

@@ -2,7 +2,7 @@
 """
 Amazon PPC 广告日志生成器
 功能: 基于分析结果生成结构化广告日志，支持周报/月报/复盘模式
-用法: python ad_log_generator.py <analyzed_data.xlsx> [--mode weekly|monthly|review] [--output log.md]
+用法: python ad_log_generator.py <analyzed_data.xlsx> [--mode weekly|monthly] [--break-even 0.35] [--output log.md]\n注意: --break-even 传产品毛利率(=盈亏ACOS)，不传则默认0.35并告警
 """
 
 import pandas as pd
@@ -100,7 +100,7 @@ def get_action_items(df):
     return actions
 
 
-def generate_weekly_log(df, overview, diag_counts, actions):
+def generate_weekly_log(df, overview, diag_counts, actions, be=0.35):
     """生成周报日志"""
     now = datetime.now()
     week_start = (now - timedelta(days=7)).strftime("%m/%d")
@@ -116,14 +116,14 @@ def generate_weekly_log(df, overview, diag_counts, actions):
 
 | 指标 | 数值 | 状态 |
 |------|------|------|
-| 总花费 | ${overview['总花费']:,.2f} | {'✅' if overview['ACOS'] < 0.25 else '⚠️'} |
+| 总花费 | ${overview['总花费']:,.2f} | {'✅' if overview['ACOS'] < be else '⚠️'} |
 | 总销售额 | ${overview['总销售额']:,.2f} | - |
-| ACOS | {overview['ACOS']*100:.1f}% | {'✅ 盈利' if overview['ACOS'] < 0.25 else '⚠️ 偏高' if overview['ACOS'] < 0.40 else '🚨 亏损'} |
+| ACOS | {overview['ACOS']*100:.1f}% | {'✅ 盈利' if overview['ACOS'] < be else '⚠️ 偏高' if overview['ACOS'] < be*1.5 else '🚨 亏损'} |
 | CTR | {overview['CTR']*100:.2f}% | {'✅' if overview['CTR'] > 0.003 else '⚠️'} |
 | CVR | {overview['CVR']*100:.1f}% | {'✅' if overview['CVR'] > 0.10 else '⚠️'} |
 | CPC | ${overview['CPC']:.2f} | - |
 | CPA | ${overview['CPA']:.2f} | - |
-| ROAS | {overview['ROAS']:.1f}x | {'✅' if overview['ROAS'] > 4 else '⚠️'} |
+| ROAS | {overview['ROAS']:.1f}x | {'✅' if overview['ROAS'] > 1/be else '⚠️'} |
 | 总订单 | {overview['总订单']:,.0f} | - |
 | 总点击 | {overview['总点击']:,.0f} | - |
 | 总曝光 | {overview['总曝光']:,.0f} | - |
@@ -176,7 +176,7 @@ def generate_weekly_log(df, overview, diag_counts, actions):
     return log
 
 
-def generate_monthly_log(df, overview, diag_counts, actions):
+def generate_monthly_log(df, overview, diag_counts, actions, be=0.35):
     """生成月报日志"""
     now = datetime.now()
     month_name = now.strftime("%Y年%m月")
@@ -196,12 +196,12 @@ def generate_monthly_log(df, overview, diag_counts, actions):
 |------|---------|------|------|
 | 总花费 | ${overview['总花费']:,.2f} | - | - |
 | 总销售额 | ${overview['总销售额']:,.2f} | - | - |
-| ACOS | {overview['ACOS']*100:.1f}% | {'✅ 盈利' if overview['ACOS'] < 0.25 else '⚠️ 偏高' if overview['ACOS'] < 0.40 else '🚨 亏损'} | {'保持' if overview['ACOS'] < 0.25 else '需优化否定词和竞价'} |
+| ACOS | {overview['ACOS']*100:.1f}% | {'✅ 盈利' if overview['ACOS'] < be else '⚠️ 偏高' if overview['ACOS'] < be*1.5 else '🚨 亏损'} | {'保持' if overview['ACOS'] < be else '需优化否定词和竞价'} |
 | CTR | {overview['CTR']*100:.2f}% | {'✅ 优秀' if overview['CTR'] > 0.005 else '✅ 正常' if overview['CTR'] > 0.002 else '⚠️ 偏低'} | {'保持' if overview['CTR'] > 0.003 else '优化主图标题'} |
 | CVR | {overview['CVR']*100:.1f}% | {'✅ 优秀' if overview['CVR'] > 0.15 else '✅ 正常' if overview['CVR'] > 0.08 else '⚠️ 偏低'} | {'保持' if overview['CVR'] > 0.10 else '优化Listing详情页'} |
 | CPC | ${overview['CPC']:.2f} | - | - |
 | CPA | ${overview['CPA']:.2f} | - | {'CPA < 毛利则盈利'} |
-| ROAS | {overview['ROAS']:.1f}x | {'✅' if overview['ROAS'] > 4 else '⚠️'} | {'保持' if overview['ROAS'] > 4 else '需降低ACOS'} |
+| ROAS | {overview['ROAS']:.1f}x | {'✅' if overview['ROAS'] > 1/be else '⚠️'} | {'保持' if overview['ROAS'] > 1/be else '需降低ACOS'} |
 
 ### 效率指标
 
@@ -293,12 +293,19 @@ def main():
     filepath = sys.argv[1]
     mode = "weekly"
     output_path = None
+    break_even = None
 
     for i, arg in enumerate(sys.argv):
         if arg == '--mode' and i + 1 < len(sys.argv):
             mode = sys.argv[i + 1]
         elif arg == '--output' and i + 1 < len(sys.argv):
             output_path = sys.argv[i + 1]
+        elif arg == '--break-even' and i + 1 < len(sys.argv):
+            break_even = float(sys.argv[i + 1])
+
+    if break_even is None:
+        break_even = 0.35
+        print("[!] 警告: 未传 --break-even，盈亏判断使用默认35%。请传产品真实毛利率！")
 
     if not output_path:
         base = os.path.splitext(filepath)[0]
@@ -314,9 +321,9 @@ def main():
 
     # 生成日志
     if mode == "monthly":
-        log = generate_monthly_log(df, overview, diag_counts, actions)
+        log = generate_monthly_log(df, overview, diag_counts, actions, break_even)
     else:
-        log = generate_weekly_log(df, overview, diag_counts, actions)
+        log = generate_weekly_log(df, overview, diag_counts, actions, break_even)
 
     # 输出
     with open(output_path, 'w', encoding='utf-8') as f:
