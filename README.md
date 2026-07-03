@@ -24,6 +24,7 @@ bash install.sh
 
 - `install_skill <name>` → 同时部署到 `~/.claude/skills/` 和 `~/.codex/skills/`
 - `install_codex_skill <name>` → 仅部署到 `~/.codex/skills/`（Codex 专用）
+- `install_claude_skill <name>` → 仅部署到 `~/.claude/skills/`（Claude 专用，如 invest/teach/web-access）
 
 安装后的副本与源码独立，各 agent 互不影响。
 

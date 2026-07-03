@@ -37,11 +37,33 @@ def parse_series(item: dict) -> tuple[list[int], float | None]:
     return vols, cpc
 
 def yoy(vols: list[int]) -> float | None:
+    # 只认真同比：不足13个月不再用首尾比降级（首尾比对新词/噪音词会造出假YoY，
+    # 实证：'teleprompter for iphone' 多月为0仍被算出-28%）
     if len(vols) >= 13 and vols[-13] > 0:
         return vols[-1] / vols[-13] - 1
-    if len(vols) >= 2 and vols[0] > 0:        # 数据不足12月，退而求其次用首尾
-        return vols[-1] / vols[0] - 1
     return None
+
+def data_quality(vols: list[int]) -> list[str]:
+    """词级数据守卫：命中任一 → 该词标❓不可评，不进自动排序，转人工验证。"""
+    issues = []
+    if len(vols) < 13:
+        issues.append("月数<13无同比基线")
+    zeros = sum(1 for v in vols if v == 0)
+    if vols and zeros >= max(2, len(vols) // 4):
+        issues.append("多月为0(噪音级)")
+    nz = sorted(v for v in vols if v > 0)
+    if nz and nz[len(nz) // 2] < 1000:
+        issues.append("中位量<1k(噪音级)")
+    return issues
+
+def spike_suspect(vols: list[int]) -> bool:
+    """垂直起量嫌疑：近3月才有量、此前接近0 → 疑词形迁移(亚马逊搜索入口变化)，
+    须拉词族相邻词(父词/同义词)对照总盘是否平移，不能直接当新需求。"""
+    if len(vols) >= 5 and vols[-1] >= 3000:
+        head = vols[:-3]
+        if head and max(head) <= vols[-1] * 0.15:
+            return True
+    return False
 
 def growth_score(y: float | None) -> float:
     if y is None: return 0.0
@@ -73,15 +95,21 @@ def score_item(item: dict) -> dict:
     vols, cpc = parse_series(item)
     latest = vols[-1] if vols else 0
     y = yoy(vols)
+    issues = data_quality(vols)
+    spike = spike_suspect(vols)
     g, vsc, csc = growth_score(y), volume_score(latest), cpc_score(cpc)
     total = round(0.5*g + 0.3*vsc + 0.2*csc, 2)
+    fl = "❓不可评" if issues else flag(y)
+    if spike:
+        fl += "|🆕垂直起量→查词族迁移"
     return {
         "关键词": item.get("关键词", ""),
         "最新月搜": latest,
         "YoY": f"{y*100:+.0f}%" if y is not None else "—",
         "CPC": cpc if cpc is not None else "—",
-        "flag": flag(y),
+        "flag": fl,
         "缝隙段1分": total,
+        "数据质量": "; ".join(issues) if issues else "OK",
         "_g": round(g,1), "_v": round(vsc,1), "_c": round(csc,1),
     }
 
@@ -102,8 +130,13 @@ def main() -> None:
     print(f"{'词':36s}{'最新月搜':>9s}{'YoY':>7s}{'CPC':>6s}{'段1分':>7s}  标")
     for r in rows:
         print(f"{r['关键词'][:34]:34s}{r['最新月搜']:>9,}{r['YoY']:>7s}{str(r['CPC']):>6s}{r['缝隙段1分']:>7}  {r['flag']}")
-    rising = [r for r in rows if r["flag"] == "🟢涨" and r["缝隙段1分"] >= 7]
+    rising = [r for r in rows if r["flag"].startswith("🟢涨") and r["缝隙段1分"] >= 7]
     print(f"\n🟢 在涨且段1分≥7(进段2竞争验证): {len(rising)} 个 → " + ", ".join(r["关键词"] for r in rising[:8]))
+    manual = [r for r in rows if "❓" in r["flag"] or "🆕" in r["flag"]]
+    if manual:
+        print(f"\n❓ 不可自动评/需人工验证 {len(manual)} 个（新词查词族迁移，噪音词直接弃）：")
+        for r in manual:
+            print(f"   {r['关键词'][:40]:40s} 最新{r['最新月搜']:,}  [{r['数据质量']}]{' 🆕垂直起量' if '🆕' in r['flag'] else ''}")
     print(f"\n输出: {out}")
 
 if __name__ == "__main__":

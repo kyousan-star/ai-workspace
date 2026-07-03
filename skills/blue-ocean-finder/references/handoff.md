@@ -38,6 +38,13 @@ blue-ocean-finder 走过的 P0-P4 判断链，就是 zach payload `ch01.decision
 4. **excel_sheets 必须含 11 个固定 Sheet 名**，否则校验不过（数据来源说明/市场概况/类目销量Top100_明细/属性标注_Top100/关键词对比_分段/新品分析/竞品选择逻辑/竞品差评摘要/品牌_竞品格局/进入壁垒评估/Go-NoGo评分卡）。建议再加「数据溯源」sheet 做信任底账。
 5. **生成≠正确**：zach 校验只查结构不查数值真假。**渲染后必须逐图肉眼核验**：无 0/空、无凑数、数字对得上原始返回。
 
+## 交付纪律（报告落地时强制）
+
+1. **B 段覆盖自检表**：深挖报告末尾附 feasibility_gate B 段全维度「做了/没做/理由」表，缺行退回（见 feasibility_gate.md）。
+2. **分数单一出处**：Go/No-Go 分数只在评分卡处计算一次，摘要/漏斗/结论全部引用该值——teleprompter v1 摘要 6.4 vs 评分卡 6.25 并存的教训。
+3. **审计关**：GO / CONDITIONAL GO 拍板前跑 `references/audit_checklist.md`，审计不过先修报告。
+4. **版本主权**：vN+1 定稿时一次动作完成三件事——旧版文件头加「⚠️ superseded by vN+1（路径）」、RESUME/续接文档同步新结论、候选种子池状态更新。旧结论存活会在续接会话里复活（overhead v4 出来后 RESUME 还写着 GO 7.5 的教训）。
+
 ## 模板
 
 参考已跑通的实例：`蓝海品类筛选/build_overhead_payload.py`（overhead 的 payload 构建器，字段全对、坑全避），直接照抄改数据即可。

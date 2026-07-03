@@ -21,6 +21,22 @@ install_skill() {
   echo "Installed $name"
 }
 
+# Claude-only: 仅部署到 ~/.claude/skills，不影响 Codex
+install_claude_skill() {
+  local name="$1"
+  local source_dir="$ROOT/skills/$name"
+
+  if [[ ! -f "$source_dir/SKILL.md" ]]; then
+    echo "Missing skill: $source_dir/SKILL.md" >&2
+    exit 1
+  fi
+
+  mkdir -p "$HOME/.claude/skills/$name"
+  rsync -a --delete "$source_dir/" "$HOME/.claude/skills/$name/"
+
+  echo "Installed (claude-only) $name"
+}
+
 # Codex-only: 仅部署到 ~/.codex/skills，不影响 Claude
 install_codex_skill() {
   local name="$1"
@@ -54,3 +70,6 @@ install_skill amazon-image-planner-v2
 install_skill product-asset-extractor
 install_skill batch-asset-generator
 install_codex_skill web-access-codex
+install_claude_skill invest
+install_claude_skill teach
+install_claude_skill web-access
