@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lesson 02 · Skill 解剖</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #0f1117; color: #e2e8f0; line-height: 1.7; padding: 2rem 1rem; }
+    .container { max-width: 720px; margin: 0 auto; }
+    .meta { font-size: 0.78rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.5rem; }
+    h1 { font-size: 1.8rem; font-weight: 700; color: #f1f5f9; margin-bottom: 0.4rem; }
+    .subtitle { color: #94a3b8; margin-bottom: 2.5rem; font-size: 1rem; }
+    h2 { font-size: 1.1rem; font-weight: 600; color: #7dd3fc; margin: 2rem 0 0.8rem; padding-bottom: 0.3rem; border-bottom: 1px solid #1e2d3d; }
+    p { margin-bottom: 1rem; color: #cbd5e1; }
+    ul { color: #cbd5e1; padding-left: 1.4rem; margin-bottom: 1rem; }
+    li { margin-bottom: 0.4rem; }
+    .callout { background: #1e293b; border-left: 3px solid #7dd3fc; border-radius: 0 8px 8px 0; padding: 1rem 1.2rem; margin: 1.2rem 0; font-size: 0.95rem; color: #cbd5e1; }
+    .callout.warn { border-left-color: #fb923c; }
+    .callout.tip  { border-left-color: #4ade80; }
+    code { background: #1e293b; color: #86efac; padding: 0.15em 0.4em; border-radius: 4px; font-family: monospace; font-size: 0.9em; }
+
+    /* Skill card */
+    .skill-card { background: #1e293b; border-radius: 10px; overflow: hidden; margin: 1.2rem 0; }
+    .skill-card-header { background: #0f2744; padding: 0.8rem 1.2rem; display: flex; align-items: center; gap: 0.8rem; }
+    .skill-badge { background: #1d4ed8; color: #fff; font-size: 0.75rem; font-weight: 700; padding: 0.2em 0.7em; border-radius: 20px; }
+    .skill-card-header span { color: #7dd3fc; font-weight: 600; font-size: 0.95rem; }
+    .skill-card-body { padding: 1rem 1.2rem; }
+    .part { display: flex; gap: 1rem; padding: 0.8rem 0; border-bottom: 1px solid #1e3a5f; align-items: flex-start; }
+    .part:last-child { border-bottom: none; }
+    .part-label { flex-shrink: 0; width: 130px; font-size: 0.82rem; font-weight: 600; color: #94a3b8; padding-top: 0.15rem; }
+    .part-body { flex: 1; font-size: 0.9rem; color: #cbd5e1; }
+    .part-body .required { color: #fb923c; font-size: 0.78rem; font-weight: 600; margin-left: 0.4rem; }
+    .part-body .optional { color: #64748b; font-size: 0.78rem; margin-left: 0.4rem; }
+
+    /* Rating */
+    .rating { display: inline-flex; gap: 2px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #334155; }
+    .dot.on { background: #7dd3fc; }
+
+    /* Diagnosis table */
+    table { width: 100%; border-collapse: collapse; margin: 1.2rem 0; font-size: 0.9rem; }
+    th { background: #1e293b; color: #7dd3fc; text-align: left; padding: 0.6rem 0.8rem; font-weight: 600; }
+    td { padding: 0.6rem 0.8rem; border-top: 1px solid #1e293b; color: #cbd5e1; vertical-align: top; }
+
+    /* Quiz */
+    .quiz { background: #0d1526; border: 1px solid #1e3a5f; border-radius: 10px; padding: 1.5rem; margin: 2rem 0; }
+    .quiz h3 { font-size: 1rem; color: #7dd3fc; margin-bottom: 1rem; }
+    .question { margin-bottom: 1.6rem; }
+    .question p { font-size: 0.95rem; color: #e2e8f0; margin-bottom: 0.6rem; }
+    .options label { display: block; padding: 0.5rem 0.8rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem; color: #94a3b8; transition: background 0.15s; margin-bottom: 0.3rem; }
+    .options label:hover { background: #1e293b; color: #e2e8f0; }
+    .options input[type=radio] { margin-right: 0.5rem; accent-color: #7dd3fc; }
+    .check-btn { background: #1d4ed8; color: #fff; border: none; border-radius: 6px; padding: 0.55rem 1.4rem; font-size: 0.9rem; cursor: pointer; margin-top: 0.5rem; }
+    .check-btn:hover { background: #2563eb; }
+    .feedback { margin-top: 0.8rem; padding: 0.7rem 1rem; border-radius: 6px; font-size: 0.9rem; display: none; }
+    .feedback.correct { background: #14532d; color: #86efac; }
+    .feedback.wrong   { background: #450a0a; color: #fca5a5; }
+
+    .tag { display: inline-block; background: #1e3a5f; color: #7dd3fc; font-size: 0.75rem; padding: 0.2em 0.6em; border-radius: 4px; margin-right: 0.3rem; }
+    .nav { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid #1e293b; font-size: 0.85rem; color: #475569; }
+    .nav a { color: #7dd3fc; text-decoration: none; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <div class="meta">Claude Skill Engineering · Lesson 02</div>
+  <h1>Skill 解剖</h1>
+  <p class="subtitle">一个好的 skill 由哪些部分组成，各部分负责什么，缺了会怎样</p>
+
+  <span class="tag">SKILL.md</span>
+  <span class="tag">结构</span>
+  <span class="tag">诊断</span>
+
+  <!-- ─── 核心问题 ─── -->
+  <h2>1. 一个 skill 为什么会"不好用"</h2>
+  <p>你一定遇到过这些情况：</p>
+  <ul>
+    <li>明明说了要用某个 skill，Claude 没触发</li>
+    <li>同一个 skill，今天输出和昨天格式不一样</li>
+    <li>输出内容对，但啰嗦、需要大量手改</li>
+    <li>skill 越写越长，但效果反而变差</li>
+  </ul>
+  <p>这些问题背后，几乎都能追溯到 skill 某个部分写得不对或缺失。</p>
+
+  <!-- ─── 解剖图 ─── -->
+  <h2>2. 一个 skill 的四个部分</h2>
+
+  <div class="skill-card">
+    <div class="skill-card-header">
+      <div class="skill-badge">SKILL.md</div>
+      <span>amazon-listing-v2（示例）</span>
+    </div>
+    <div class="skill-card-body">
+
+      <div class="part">
+        <div class="part-label">
+          ① 触发描述<br>
+          <span style="color:#fb923c; font-size:0.78rem;">必须有</span>
+        </div>
+        <div class="part-body">
+          frontmatter 里的 <code>description</code> 字段。Claude 靠它决定"这条消息该不该用这个 skill"。<br>
+          <span style="color:#64748b; font-size:0.85rem;">写错 → 不触发 / 误触发 / 和别的 skill 打架</span>
+        </div>
+      </div>
+
+      <div class="part">
+        <div class="part-label">
+          ② IPO 契约<br>
+          <span style="color:#fb923c; font-size:0.78rem;">必须有</span>
+        </div>
+        <div class="part-body">
+          明确写：<strong>输入什么 → 处理什么 → 输出什么</strong>。<br>
+          就像告诉一个新员工：你收到什么材料、要做什么、要交什么东西。<br>
+          <span style="color:#64748b; font-size:0.85rem;">缺失 → 输出格式飘，每次不一样</span>
+        </div>
+      </div>
+
+      <div class="part">
+        <div class="part-label">
+          ③ 执行指令<br>
+          <span style="color:#fb923c; font-size:0.78rem;">必须有</span>
+        </div>
+        <div class="part-body">
+          具体怎么做的步骤、规则、判断标准。这是 skill 的主体内容。<br>
+          <span style="color:#64748b; font-size:0.85rem;">写得模糊 → 输出质量不稳定，靠 Claude 自由发挥</span>
+        </div>
+      </div>
+
+      <div class="part">
+        <div class="part-label">
+          ④ 范例<br>
+          <span style="color:#4ade80; font-size:0.78rem;">强烈建议</span>
+        </div>
+        <div class="part-body">
+          1-2 个完整的"输入 → 输出"真实样本。Claude 会照着结构输出，比写一百条规则更有效。<br>
+          <span style="color:#64748b; font-size:0.85rem;">没有 → 格式靠猜，每次不同</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ─── 触发描述 ─── -->
+  <h2>3. 重点讲：触发描述（最容易出问题）</h2>
+
+  <p>description 是 Claude 判断要不要启用这个 skill 的唯一依据。有两个常见错误：</p>
+
+  <div class="callout warn">
+    <strong>错误写法：</strong>把描述写成介绍，触发词埋在后面<br><br>
+    "这是一个专业的亚马逊 Listing 撰写工具，基于 COSMO 语义和 A9 算法，帮助卖家优化标题、五点描述……<strong>当用户需要写 listing 时触发</strong>"<br><br>
+    问题：Claude 读 description 时有字数限制，后半段可能被截掉，触发词没了。
+  </div>
+
+  <div class="callout tip">
+    <strong>正确写法：</strong>第一句就是触发场景<br><br>
+    "<strong>当用户需要撰写或优化亚马逊 Listing 时触发</strong>，包括写标题、五点、描述……"<br><br>
+    触发词前置，不管截不截都能命中。
+  </div>
+
+  <!-- ─── IPO ─── -->
+  <h2>4. 重点讲：IPO 契约（决定输出稳不稳定）</h2>
+
+  <p>IPO = Input（输入）/ Process（处理）/ Output（输出）。</p>
+  <p>一个没有 IPO 契约的 skill，就像你雇了个助理，但没告诉他"你负责什么、用什么格式交给我"——每次结果都靠他自己发挥。</p>
+
+  <table>
+    <tr>
+      <th>部分</th>
+      <th>写什么</th>
+      <th>举例</th>
+    </tr>
+    <tr>
+      <td><strong>Input</strong></td>
+      <td>用户需要提供什么</td>
+      <td>产品名称、目标市场、核心卖点、竞品 ASIN</td>
+    </tr>
+    <tr>
+      <td><strong>Process</strong></td>
+      <td>skill 要做哪些步骤</td>
+      <td>分析竞品关键词 → 提炼差异化卖点 → 套用 A9 规则写标题</td>
+    </tr>
+    <tr>
+      <td><strong>Output</strong></td>
+      <td>交付物是什么，格式是什么</td>
+      <td>Title（200字符内）+ 5 条 Bullet Points + Search Terms</td>
+    </tr>
+  </table>
+
+  <div class="callout">
+    IPO 不用长，几行就够。它的价值是：你和 Claude 都清楚"这个 skill 做到什么为止"。
+  </div>
+
+  <!-- ─── 诊断 ─── -->
+  <h2>5. 用这个框架诊断 skill 问题</h2>
+
+  <table>
+    <tr>
+      <th>症状</th>
+      <th>大概率出在哪</th>
+      <th>怎么告诉 Claude 修</th>
+    </tr>
+    <tr>
+      <td>说了要用，但没触发</td>
+      <td>① 触发描述：触发词不够明确，或埋太深</td>
+      <td>"帮我把这个 skill 的 description 第一句改成触发场景"</td>
+    </tr>
+    <tr>
+      <td>两个 skill 抢着触发</td>
+      <td>① 触发描述：两个 skill 的触发词重叠</td>
+      <td>"帮我检查这两个 skill 的 description 有没有冲突，把次要的那个限定得更窄"</td>
+    </tr>
+    <tr>
+      <td>每次格式不一样</td>
+      <td>② IPO 契约 + ④ 范例：输出没有约束</td>
+      <td>"帮我加一个输出模板，并加一个完整的范例"</td>
+    </tr>
+    <tr>
+      <td>输出质量飘，靠运气</td>
+      <td>③ 执行指令：规则太模糊，没有判断标准</td>
+      <td>"把这条指令从模糊描述改成具体的 if-then 规则"</td>
+    </tr>
+    <tr>
+      <td>skill 越长越差</td>
+      <td>③ 执行指令：把所有细节都塞进主文件</td>
+      <td>"帮我把细节内容拆到 references 文件夹，主文件只保留骨架"</td>
+    </tr>
+  </table>
+
+  <!-- ─── Quiz ─── -->
+  <div class="quiz">
+    <h3>诊断练习</h3>
+
+    <div class="question" id="q1">
+      <p><strong>Q1.</strong> 你的 amazon-ad-optimizer skill，用了几次发现每次输出的报告格式都不太一样——有时有表格，有时没有。这个问题出在哪个部分？</p>
+      <div class="options">
+        <label><input type="radio" name="q1" value="a"> A. ① 触发描述写得不好</label>
+        <label><input type="radio" name="q1" value="b"> B. ② IPO 契约缺失，输出没有约束；或 ④ 缺少范例</label>
+        <label><input type="radio" name="q1" value="c"> C. ③ 执行指令太短</label>
+      </div>
+      <button class="check-btn" onclick="check('q1','b','格式不稳定是典型的 IPO 契约缺失症状——没有明确规定输出是什么结构，Claude 每次自由发挥。加一个输出模板加一个完整范例，格式就会稳定下来。')">检查答案</button>
+      <div class="feedback" id="q1-fb"></div>
+    </div>
+
+    <div class="question" id="q2">
+      <p><strong>Q2.</strong> 你有两个 skill：amazon-listing-v2 和 listing-rufus-cosmo-audit。用户说"帮我优化这个 listing"，结果触发了错误的那个。问题在哪？</p>
+      <div class="options">
+        <label><input type="radio" name="q2" value="a"> A. ③ 执行指令有冲突</label>
+        <label><input type="radio" name="q2" value="b"> B. ① 两个 skill 的触发描述触发词太相似，Claude 分不清</label>
+        <label><input type="radio" name="q2" value="c"> C. ④ 两个 skill 都缺少范例</label>
+      </div>
+      <button class="check-btn" onclick="check('q2','b','两个 skill 触发词重叠是触发打架的根因。解决方式：让两个 skill 的 description 区分清楚各自的使用场景，或者在次要的 skill 里明确写不适用于哪些场景。')">检查答案</button>
+      <div class="feedback" id="q2-fb"></div>
+    </div>
+
+    <div class="question" id="q3">
+      <p><strong>Q3.</strong> 以下哪种做法最能稳定 skill 的输出格式？</p>
+      <div class="options">
+        <label><input type="radio" name="q3" value="a"> A. 把执行指令写得非常详细、非常长</label>
+        <label><input type="radio" name="q3" value="b"> B. 加一个完整的"输入→输出"范例，让 Claude 照着结构来</label>
+        <label><input type="radio" name="q3" value="c"> C. 每次用的时候在对话里提醒 Claude 用固定格式</label>
+      </div>
+      <button class="check-btn" onclick="check('q3','b','范例（Few-shot）是稳定输出格式最高效的方式——Claude 会直接照抄结构，比写一百条规则更管用。每次提醒是最脆的做法，靠人记不靠 skill 本身。')">检查答案</button>
+      <div class="feedback" id="q3-fb"></div>
+    </div>
+
+  </div>
+
+  <!-- ─── 实操作业 ─── -->
+  <h2>课后实操（可选）</h2>
+  <p>打开你任意一个现有 skill 的 SKILL.md，对照四个部分检查：</p>
+  <ul>
+    <li>① 触发描述的第一句是不是触发场景？</li>
+    <li>② 有没有写清楚输入什么、输出什么？</li>
+    <li>③ 执行指令是具体规则还是模糊描述？</li>
+    <li>④ 有没有一个完整的范例？</li>
+  </ul>
+  <p>发现问题就告诉我，我帮你改。</p>
+
+  <div class="callout tip">
+    遇到任何问题，直接问 Claude：<strong>"我在看 Lesson 02，[描述你的问题]"</strong>
+  </div>
+
+  <div class="nav">
+    <a href="./0001-hooks-mental-model.html">← Lesson 01</a> &nbsp;·&nbsp;
+    <a href="../learning-records/">学习记录</a> &nbsp;·&nbsp;
+    <a href="../MISSION.md">MISSION</a>
+  </div>
+
+</div>
+
+<script>
+function check(qid, correct, explanation) {
+  const selected = document.querySelector('input[name="' + qid + '"]:checked');
+  const fb = document.getElementById(qid + '-fb');
+  if (!selected) { fb.style.display='block'; fb.className='feedback wrong'; fb.textContent='请先选择一个答案。'; return; }
+  if (selected.value === correct) {
+    fb.className = 'feedback correct';
+    fb.textContent = '✓ 正确！' + explanation;
+  } else {
+    fb.className = 'feedback wrong';
+    fb.textContent = '✗ 再想想。提示：' + explanation;
+  }
+  fb.style.display = 'block';
+}
+</script>
+</body>
+</html>

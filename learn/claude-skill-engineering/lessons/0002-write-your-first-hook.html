@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lesson 02 · 写第一个 Hook</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      line-height: 1.7;
+      padding: 2rem 1rem;
+    }
+    .container { max-width: 720px; margin: 0 auto; }
+    .meta { font-size: 0.78rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.5rem; }
+    h1 { font-size: 1.8rem; font-weight: 700; color: #f1f5f9; margin-bottom: 0.4rem; }
+    .subtitle { color: #94a3b8; margin-bottom: 2.5rem; font-size: 1rem; }
+    h2 { font-size: 1.1rem; font-weight: 600; color: #7dd3fc; margin: 2rem 0 0.8rem; padding-bottom: 0.3rem; border-bottom: 1px solid #1e2d3d; }
+    h3 { font-size: 0.95rem; font-weight: 600; color: #e2e8f0; margin: 1.2rem 0 0.5rem; }
+    p { margin-bottom: 1rem; color: #cbd5e1; }
+    .callout { background: #1e293b; border-left: 3px solid #7dd3fc; border-radius: 0 8px 8px 0; padding: 1rem 1.2rem; margin: 1.2rem 0; font-size: 0.95rem; }
+    .callout.warn { border-left-color: #fb923c; }
+    .callout.tip  { border-left-color: #4ade80; }
+    .callout.key  { border-left-color: #a78bfa; }
+    code { background: #1e293b; color: #86efac; padding: 0.15em 0.4em; border-radius: 4px; font-family: "JetBrains Mono", "Fira Code", monospace; font-size: 0.88em; }
+    pre { background: #1e293b; border-radius: 8px; padding: 1.2rem; overflow-x: auto; margin: 1rem 0; font-size: 0.88rem; position: relative; }
+    pre code { background: none; padding: 0; color: #e2e8f0; }
+    .copy-btn { position: absolute; top: 0.6rem; right: 0.6rem; background: #334155; color: #94a3b8; border: none; border-radius: 4px; padding: 0.25rem 0.6rem; font-size: 0.75rem; cursor: pointer; transition: all 0.15s; }
+    .copy-btn:hover { background: #475569; color: #e2e8f0; }
+    .step { display: flex; gap: 1rem; margin: 1.2rem 0; }
+    .step-num { flex-shrink: 0; width: 28px; height: 28px; background: #1d4ed8; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; color: #fff; margin-top: 0.1rem; }
+    .step-body { flex: 1; }
+    .step-body p { margin-bottom: 0.5rem; }
+
+    /* Quiz */
+    .quiz { background: #0d1526; border: 1px solid #1e3a5f; border-radius: 10px; padding: 1.5rem; margin: 2rem 0; }
+    .quiz h3 { font-size: 1rem; color: #7dd3fc; margin-bottom: 1rem; }
+    .question { margin-bottom: 1.4rem; }
+    .question p { font-size: 0.95rem; color: #e2e8f0; margin-bottom: 0.6rem; }
+    .options label { display: block; padding: 0.5rem 0.8rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem; color: #94a3b8; transition: background 0.15s; margin-bottom: 0.3rem; }
+    .options label:hover { background: #1e293b; color: #e2e8f0; }
+    .options input[type=radio] { margin-right: 0.5rem; accent-color: #7dd3fc; }
+    .check-btn { background: #1d4ed8; color: #fff; border: none; border-radius: 6px; padding: 0.55rem 1.4rem; font-size: 0.9rem; cursor: pointer; margin-top: 0.5rem; transition: background 0.15s; }
+    .check-btn:hover { background: #2563eb; }
+    .feedback { margin-top: 0.8rem; padding: 0.7rem 1rem; border-radius: 6px; font-size: 0.9rem; display: none; }
+    .feedback.correct { background: #14532d; color: #86efac; }
+    .feedback.wrong   { background: #450a0a; color: #fca5a5; }
+
+    .tag { display: inline-block; background: #1e3a5f; color: #7dd3fc; font-size: 0.75rem; padding: 0.2em 0.6em; border-radius: 4px; margin-right: 0.3rem; }
+    .nav { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid #1e293b; font-size: 0.85rem; color: #475569; }
+    .nav a { color: #7dd3fc; text-decoration: none; }
+    .nav a:hover { text-decoration: underline; }
+    .diff-old { color: #fca5a5; }
+    .diff-new { color: #86efac; }
+    .highlight { background: #1e3a5f; border-radius: 4px; padding: 0.1em 0.3em; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <div class="meta">Claude Skill Engineering · Lesson 02</div>
+  <h1>写第一个 Hook</h1>
+  <p class="subtitle">从零写一个真实 hook，装进你的 settings.json，跑起来看效果</p>
+
+  <span class="tag">Stop hook</span>
+  <span class="tag">settings.json</span>
+  <span class="tag">osascript</span>
+
+  <!-- ─── 目标 ─── -->
+  <h2>这节课做什么</h2>
+  <p>写一个 <strong>Stop hook</strong>：每次 Claude 完成响应后，Mac 桌面弹出一条通知。</p>
+  <p>为什么选这个作为第一个 hook：</p>
+  <ul style="color:#cbd5e1; padding-left:1.4rem; margin-bottom:1rem;">
+    <li>Stop 事件最简单——不需要 matcher，不需要拦截工具，就是"完成了就触发"</li>
+    <li>效果立即可见，不用猜有没有生效</li>
+    <li>实际有用：跑长任务时你可以离开，完成后收到通知</li>
+  </ul>
+
+  <!-- ─── 前置检查 ─── -->
+  <h2>1. 先看你现有的 settings.json</h2>
+  <p>你的关税查询 hook 已经在里面了。先看一眼现有结构，再往里加新 hook。</p>
+
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body">
+      <p>打开文件：</p>
+      <pre><code>open ~/.claude/settings.json</code><button class="copy-btn" onclick="copyCode(this)">复制</button></pre>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body">
+      <p>找到 <code>"hooks"</code> 字段，看清楚现有结构。大概长这样：</p>
+      <pre><code>{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": "查关税",
+        "hooks": [{ "type": "command", "command": "..." }]
+      }
+    ]
+  }
+}</code></pre>
+    </div>
+  </div>
+
+  <!-- ─── 写 Hook ─── -->
+  <h2>2. 加入 Stop Hook</h2>
+
+  <p>在现有的 <code>hooks</code> 对象里，加一个 <code>"Stop"</code> 字段。完整结构如下：</p>
+
+  <pre><code>{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": "查关税",
+        "hooks": [{ "type": "command", "command": "..." }]
+      }
+    ],
+    <span style="color:#86efac">"Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "osascript -e 'display notification \"Claude 完成了\" with title \"Claude Code\" sound name \"Glass\"'"
+          }
+        ]
+      }
+    ]</span>
+  }
+}</code><button class="copy-btn" onclick="copyCode(this)">复制</button></pre>
+
+  <div class="callout tip">
+    <strong>注意：</strong>Stop hook 不需要 <code>matcher</code> 字段——每次 Claude 停止响应都触发，没有条件。
+  </div>
+
+  <!-- ─── 验证 ─── -->
+  <h2>3. 验证是否生效</h2>
+
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body">
+      <p>保存 settings.json</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body">
+      <p>在 Claude Code 里发任意一条消息，等它回完</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-body">
+      <p>右上角应该弹出通知 <strong>"Claude 完成了"</strong>，带一声提示音</p>
+      <p style="color:#64748b; font-size:0.9rem;">如果没弹：检查系统设置 → 通知 → 终端/Claude Code 是否允许通知</p>
+    </div>
+  </div>
+
+  <!-- ─── 解剖 ─── -->
+  <h2>4. 解剖这个 Hook</h2>
+
+  <pre><code>{
+  "type": "command",          <span style="color:#475569">// 目前唯一的 hook 类型</span>
+  "command": "osascript ..."  <span style="color:#475569">// 任意 shell 命令，这里用 macOS 的通知 API</span>
+}</code></pre>
+
+  <p><code>osascript</code> 是 macOS 执行 AppleScript 的命令行工具。<code>display notification</code> 是弹通知的 AppleScript 语句。换成其他命令也完全可以——发 Slack、写日志、执行脚本都行。</p>
+
+  <div class="callout key">
+    <strong>关键认知：</strong>hook 的 <code>command</code> 就是一条 shell 命令，和你在终端里手敲没有区别。Claude 不参与这个过程——是 harness（Claude Code 运行时）直接执行的。
+  </div>
+
+  <!-- ─── 变体 ─── -->
+  <h2>5. 三个实用变体（选一个试试）</h2>
+
+  <h3>变体 A：通知里带时间戳</h3>
+  <pre><code>"command": "osascript -e \"display notification \\\"完成于 $(date '+%H:%M:%S')\\\" with title \\\"Claude Code\\\"\""</code><button class="copy-btn" onclick="copyCode(this)">复制</button></pre>
+
+  <h3>变体 B：写日志到文件</h3>
+  <pre><code>"command": "echo \"$(date '+%Y-%m-%d %H:%M:%S') Claude 完成\" >> ~/claude-sessions.log"</code><button class="copy-btn" onclick="copyCode(this)">复制</button></pre>
+  <p style="color:#64748b; font-size:0.88rem;">日志会追加到 ~/claude-sessions.log，可以用 <code>tail -f ~/claude-sessions.log</code> 实时查看。</p>
+
+  <h3>变体 C：两个一起（通知 + 日志）</h3>
+  <pre><code>"command": "osascript -e 'display notification \"Claude 完成了\" with title \"Claude Code\" sound name \"Glass\"' && echo \"$(date '+%Y-%m-%d %H:%M:%S') done\" >> ~/claude-sessions.log"</code><button class="copy-btn" onclick="copyCode(this)">复制</button></pre>
+
+  <!-- ─── Quiz ─── -->
+  <div class="quiz">
+    <h3>理解检验</h3>
+
+    <div class="question" id="q1">
+      <p><strong>Q1.</strong> Stop hook 里为什么不需要写 <code>matcher</code>？</p>
+      <div class="options">
+        <label><input type="radio" name="q1" value="a"> A. Stop 事件是系统内置的，不支持 matcher</label>
+        <label><input type="radio" name="q1" value="b"> B. 因为 Stop 不匹配任何文本——它匹配的是"Claude 完成了一轮响应"这个时机本身，没有文本可以过滤</label>
+        <label><input type="radio" name="q1" value="c"> C. matcher 是可选的，写不写都一样</label>
+      </div>
+      <button class="check-btn" onclick="check('q1','b','Stop 事件没有可匹配的文本内容，它的触发条件就是时机本身。UserPromptSubmit 匹配用户输入文本，PreToolUse/PostToolUse 匹配工具名——这两类才需要 matcher 来过滤。')">检查答案</button>
+      <div class="feedback" id="q1-fb"></div>
+    </div>
+
+    <div class="question" id="q2">
+      <p><strong>Q2.</strong> 如果你想让 hook 只在用户消息含有"广告优化"时才执行某个脚本，应该用哪个事件 + 什么 matcher？</p>
+      <div class="options">
+        <label><input type="radio" name="q2" value="a"> A. Stop 事件，matcher: 广告优化</label>
+        <label><input type="radio" name="q2" value="b"> B. PreToolUse 事件，matcher: 广告优化</label>
+        <label><input type="radio" name="q2" value="c"> C. UserPromptSubmit 事件，matcher: 广告优化</label>
+      </div>
+      <button class="check-btn" onclick="check('q2','c','UserPromptSubmit 在用户发消息后、Claude 响应前触发，matcher 匹配用户输入文本。这正是关键词路由的标准写法——你的关税查询 hook 就是这个模式。')">检查答案</button>
+      <div class="feedback" id="q2-fb"></div>
+    </div>
+
+    <div class="question" id="q3">
+      <p><strong>Q3.</strong> hook 的 command 执行失败（脚本报错）会怎样？</p>
+      <div class="options">
+        <label><input type="radio" name="q3" value="a"> A. Claude 会停止响应并报错</label>
+        <label><input type="radio" name="q3" value="b"> B. hook 静默失败，Claude 正常继续——shell 命令的成败不影响 Claude 的主流程</label>
+        <label><input type="radio" name="q3" value="c"> C. Claude 会重试这条 hook</label>
+      </div>
+      <button class="check-btn" onclick="check('q3','b','hook 命令失败不会中断 Claude。这也是为什么 hook 不适合做业务逻辑——失败了你不会知道。hook 适合做通知、日志、路由这类辅助操作，核心逻辑要放在 SKILL.md 指令里。')">检查答案</button>
+      <div class="feedback" id="q3-fb"></div>
+    </div>
+  </div>
+
+  <!-- ─── 下一节 ─── -->
+  <h2>下一节</h2>
+  <p>你现在会写 Stop hook 了。下一步是 <strong>PreToolUse hook</strong>——在 Claude 调用某个工具前拦截，做审计或注入信息。这是 hook 里最有工程价值的一种，也是最容易踩坑的。</p>
+  <p>遇到任何问题直接问 Claude："我在看 Lesson 02，[问题描述]"</p>
+
+  <div class="nav">
+    <a href="./0001-hooks-mental-model.html">← Lesson 01</a> &nbsp;·&nbsp;
+    <a href="./0003-pretooluse-hook.html">下一课 →</a> &nbsp;·&nbsp;
+    <a href="../learning-records/">学习记录</a>
+  </div>
+
+</div>
+
+<script>
+function check(qid, correct, explanation) {
+  const selected = document.querySelector('input[name="' + qid + '"]:checked');
+  const fb = document.getElementById(qid + '-fb');
+  if (!selected) {
+    fb.style.display = 'block';
+    fb.className = 'feedback wrong';
+    fb.textContent = '请先选择一个答案。';
+    return;
+  }
+  if (selected.value === correct) {
+    fb.className = 'feedback correct';
+    fb.textContent = '✓ 正确！' + explanation;
+  } else {
+    fb.className = 'feedback wrong';
+    fb.textContent = '✗ 再想想。提示：' + explanation;
+  }
+  fb.style.display = 'block';
+}
+
+function copyCode(btn) {
+  const pre = btn.parentElement;
+  const code = pre.querySelector('code').innerText;
+  navigator.clipboard.writeText(code).then(() => {
+    btn.textContent = '已复制';
+    setTimeout(() => btn.textContent = '复制', 1500);
+  });
+}
+</script>
+</body>
+</html>

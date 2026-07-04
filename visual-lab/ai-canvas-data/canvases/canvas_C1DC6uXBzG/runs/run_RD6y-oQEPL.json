@@ -1,0 +1,26 @@
+{
+  "runId": "run_RD6y-oQEPL",
+  "type": "create_image_version",
+  "model": "external",
+  "input": {
+    "sourceShapeId": "shape:image_54008119",
+    "imagePath": "/Users/lihuan/Documents/跨境业务/美国亚马逊业务运营/品牌logo和调性/pinterest_drafts/pinterest-remote-in-hand-solo-creator-ai-canvas-v3.png",
+    "w": 400,
+    "h": 600,
+    "title": "Remote-In-Hand Solo Creator Pinterest Pin v3 - recommended"
+  },
+  "output": {
+    "newShapeId": "shape:image_ddfe0ce7",
+    "assetId": "asset:eEhS92PGNeBYJ2jyAESQX",
+    "assetPath": "assets/images/pinterest-remote-in-hand-solo-creator-ai-canvas-v3_1782358995866.png",
+    "version": 3,
+    "parentShapeId": "shape:image_54008119",
+    "bounds": {
+      "x": 1320,
+      "y": 80,
+      "w": 400,
+      "h": 600
+    }
+  },
+  "createdAt": "2026-06-25T03:43:15.901Z"
+}

@@ -1,0 +1,25 @@
+{
+  "runId": "run_u3MFcyKnHh",
+  "type": "import_image",
+  "model": "external",
+  "input": {
+    "source": "upload",
+    "originalName": "VLOGARA real product full 4-leg tripod reference",
+    "inputPath": "/Users/lihuan/Documents/跨境业务/美国亚马逊业务运营/品类cell phone tripod/ST102/图片/终版/AMZ 图片/主副图/主图1.jpg"
+  },
+  "output": {
+    "importId": "import_FTq-W88OnF",
+    "shapeId": "shape:image_otPIp-o5",
+    "imageShapeId": "shape:image_otPIp-o5",
+    "assetPath": "assets/images/VLOGARA_real_product_full_4-leg_tripod_reference_1782354914643.jpg",
+    "assetUrl": "/api/canvas/asset-file/images/VLOGARA_real_product_full_4-leg_tripod_reference_1782354914643.jpg",
+    "bounds": {
+      "x": 40,
+      "y": 80,
+      "w": 260,
+      "h": 325
+    },
+    "pendingSync": true
+  },
+  "createdAt": "2026-06-25T02:35:14.644Z"
+}

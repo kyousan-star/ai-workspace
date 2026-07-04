@@ -1,0 +1,324 @@
+{
+  "selection": {
+    "canvasId": "canvas_C1DC6uXBzG",
+    "pageId": "page:page",
+    "selectedShapeIds": [
+      "shape:image_ddfe0ce7"
+    ],
+    "shapes": [
+      {
+        "id": "shape:image_ddfe0ce7",
+        "type": "image",
+        "role": "ai_image",
+        "bounds": {
+          "x": 1320,
+          "y": 80,
+          "w": 400,
+          "h": 600
+        },
+        "version": 3,
+        "parentShapeId": "shape:image_54008119",
+        "assetPath": "assets/images/pinterest-remote-in-hand-solo-creator-ai-canvas-v3_1782358995866.png",
+        "assetUrl": "/api/canvas/asset-file/images/pinterest-remote-in-hand-solo-creator-ai-canvas-v3_1782358995866.png",
+        "meta": {
+          "aiCanvasRole": "ai_image",
+          "holderId": "shape:holder_cJZdkzQj",
+          "parentShapeId": "shape:image_54008119",
+          "sourceRunId": "run_RD6y-oQEPL",
+          "version": 3,
+          "assetPath": "assets/images/pinterest-remote-in-hand-solo-creator-ai-canvas-v3_1782358995866.png",
+          "assetUrl": "/api/canvas/asset-file/images/pinterest-remote-in-hand-solo-creator-ai-canvas-v3_1782358995866.png",
+          "imageSource": "codex_generation",
+          "usableAsSkillInput": true,
+          "title": "Remote-In-Hand Solo Creator Pinterest Pin v3 - recommended"
+        }
+      }
+    ]
+  },
+  "shapes": [
+    {
+      "id": "shape:0wfAeC0_GWnZIexK1RDdt",
+      "type": "arrow",
+      "bounds": {
+        "x": 395.9173363363425,
+        "y": 92.46823731029419,
+        "w": 78.18190716972316,
+        "h": 120.15463352593066
+      },
+      "text": "",
+      "color": "black",
+      "meta": {},
+      "arrowStart": {
+        "x": 395.9173363363425,
+        "y": 92.46823731029419
+      },
+      "arrowEnd": {
+        "x": 397.9173363363425,
+        "y": 92.46823731029419
+      }
+    },
+    {
+      "id": "shape:image_ddfe0ce7",
+      "type": "image",
+      "role": "ai_image",
+      "bounds": {
+        "x": 1320,
+        "y": 80,
+        "w": 400,
+        "h": 600
+      },
+      "version": 3,
+      "parentShapeId": "shape:image_54008119",
+      "assetPath": "assets/images/pinterest-remote-in-hand-solo-creator-ai-canvas-v3_1782358995866.png",
+      "assetUrl": "/api/canvas/asset-file/images/pinterest-remote-in-hand-solo-creator-ai-canvas-v3_1782358995866.png",
+      "meta": {
+        "aiCanvasRole": "ai_image",
+        "holderId": "shape:holder_cJZdkzQj",
+        "parentShapeId": "shape:image_54008119",
+        "sourceRunId": "run_RD6y-oQEPL",
+        "version": 3,
+        "assetPath": "assets/images/pinterest-remote-in-hand-solo-creator-ai-canvas-v3_1782358995866.png",
+        "assetUrl": "/api/canvas/asset-file/images/pinterest-remote-in-hand-solo-creator-ai-canvas-v3_1782358995866.png",
+        "imageSource": "codex_generation",
+        "usableAsSkillInput": true,
+        "title": "Remote-In-Hand Solo Creator Pinterest Pin v3 - recommended"
+      }
+    },
+    {
+      "id": "shape:image_zVFkh3lL",
+      "type": "image",
+      "role": "ai_image",
+      "bounds": {
+        "x": 40,
+        "y": 440,
+        "w": 260,
+        "h": 325
+      },
+      "version": 1,
+      "assetPath": "assets/images/VLOGARA_real_4-leg_base_detail_reference_1782354915380.jpg",
+      "assetUrl": "/api/canvas/asset-file/images/VLOGARA_real_4-leg_base_detail_reference_1782354915380.jpg",
+      "meta": {
+        "aiCanvasRole": "ai_image",
+        "version": 1,
+        "assetPath": "assets/images/VLOGARA_real_4-leg_base_detail_reference_1782354915380.jpg",
+        "assetUrl": "/api/canvas/asset-file/images/VLOGARA_real_4-leg_base_detail_reference_1782354915380.jpg",
+        "imageSource": "upload",
+        "importId": "import_pRsLn5-K5T",
+        "usableAsSkillInput": true,
+        "title": "VLOGARA real 4-leg base detail reference"
+      }
+    },
+    {
+      "id": "shape:version_arrow_283fdb25",
+      "type": "arrow",
+      "role": "version_group",
+      "bounds": {
+        "x": 1260,
+        "y": 380,
+        "w": 42,
+        "h": 0
+      },
+      "text": "",
+      "color": "blue",
+      "parentShapeId": "shape:image_54008119",
+      "meta": {
+        "aiCanvasRole": "version_group",
+        "parentShapeId": "shape:image_54008119"
+      },
+      "arrowStart": {
+        "x": 1260,
+        "y": 380
+      },
+      "arrowEnd": {
+        "x": 1302,
+        "y": 380
+      }
+    },
+    {
+      "id": "shape:holder_cJZdkzQj",
+      "type": "geo",
+      "role": "image_holder",
+      "bounds": {
+        "x": 360,
+        "y": 80,
+        "w": 400,
+        "h": 600
+      },
+      "text": "Pinterest Pin - Remote-In-Hand Solo Creator",
+      "color": "blue",
+      "aspectRatio": "2:3",
+      "meta": {
+        "aiCanvasRole": "image_holder",
+        "aspectRatio": "2:3",
+        "acceptsGeneratedImage": true,
+        "title": "Pinterest Pin - Remote-In-Hand Solo Creator"
+      }
+    },
+    {
+      "id": "shape:vBboHpeismOuJcB_mPfN2",
+      "type": "geo",
+      "bounds": {
+        "x": 396.2466817959248,
+        "y": 387.5758839015288,
+        "w": 150.69436749949227,
+        "h": 222.42110366140054
+      },
+      "color": "black",
+      "meta": {}
+    },
+    {
+      "id": "shape:oNLva7X1aLvNOkZJJfgJU",
+      "type": "geo",
+      "bounds": {
+        "x": 605.8515421444334,
+        "y": 246.18317316767067,
+        "w": 125.39593126842749,
+        "h": 398.7479577866768
+      },
+      "color": "black",
+      "meta": {}
+    },
+    {
+      "id": "shape:version_arrow_4ef41586",
+      "type": "arrow",
+      "role": "version_group",
+      "bounds": {
+        "x": 780,
+        "y": 380,
+        "w": 42,
+        "h": 0
+      },
+      "text": "",
+      "color": "blue",
+      "parentShapeId": "shape:image_AFAEwonm",
+      "meta": {
+        "aiCanvasRole": "version_group",
+        "parentShapeId": "shape:image_AFAEwonm"
+      },
+      "arrowStart": {
+        "x": 780,
+        "y": 380
+      },
+      "arrowEnd": {
+        "x": 822,
+        "y": 380
+      }
+    },
+    {
+      "id": "shape:EPktU7K15l-LUJ96xi1TK",
+      "type": "text",
+      "bounds": {
+        "x": 460.3796526468905,
+        "y": 157.23154239592012,
+        "w": 363.61718749999994,
+        "h": 32.3984375
+      },
+      "text": "人要面对tripod上手机里的镜头。",
+      "color": "black",
+      "meta": {}
+    },
+    {
+      "id": "shape:5vq4BQ-P04hTCKc7n_XqA",
+      "type": "text",
+      "bounds": {
+        "x": 475.0167058577594,
+        "y": 517.7001479088491,
+        "w": 217.00000000000006,
+        "h": 32.3984375
+      },
+      "text": "多出来一只手很诡异",
+      "color": "black",
+      "meta": {}
+    },
+    {
+      "id": "shape:image_AFAEwonm",
+      "type": "image",
+      "role": "ai_image",
+      "bounds": {
+        "x": 360,
+        "y": 80,
+        "w": 400,
+        "h": 600
+      },
+      "version": 1,
+      "assetPath": "assets/images/ig_0eb67e38d2141464016a3c9525b294819b92e85c2431b976e7_1782355945353.png",
+      "assetUrl": "/api/canvas/asset-file/images/ig_0eb67e38d2141464016a3c9525b294819b92e85c2431b976e7_1782355945353.png",
+      "meta": {
+        "aiCanvasRole": "ai_image",
+        "holderId": "shape:holder_cJZdkzQj",
+        "sourceRunId": "run_YlCLxYmqaM",
+        "version": 1,
+        "assetPath": "assets/images/ig_0eb67e38d2141464016a3c9525b294819b92e85c2431b976e7_1782355945353.png",
+        "assetUrl": "/api/canvas/asset-file/images/ig_0eb67e38d2141464016a3c9525b294819b92e85c2431b976e7_1782355945353.png",
+        "imageSource": "codex_generation",
+        "usableAsSkillInput": true,
+        "title": "Remote-In-Hand Solo Creator Pinterest Pin v1"
+      }
+    },
+    {
+      "id": "shape:image_54008119",
+      "type": "image",
+      "role": "ai_image",
+      "bounds": {
+        "x": 840,
+        "y": 80,
+        "w": 400,
+        "h": 600
+      },
+      "version": 2,
+      "parentShapeId": "shape:image_AFAEwonm",
+      "assetPath": "assets/images/pinterest-remote-in-hand-solo-creator-ai-canvas-v2_1782358733348.png",
+      "assetUrl": "/api/canvas/asset-file/images/pinterest-remote-in-hand-solo-creator-ai-canvas-v2_1782358733348.png",
+      "meta": {
+        "aiCanvasRole": "ai_image",
+        "holderId": "shape:holder_cJZdkzQj",
+        "parentShapeId": "shape:image_AFAEwonm",
+        "sourceRunId": "run_cXBpJi7Let",
+        "version": 2,
+        "assetPath": "assets/images/pinterest-remote-in-hand-solo-creator-ai-canvas-v2_1782358733348.png",
+        "assetUrl": "/api/canvas/asset-file/images/pinterest-remote-in-hand-solo-creator-ai-canvas-v2_1782358733348.png",
+        "imageSource": "codex_generation",
+        "usableAsSkillInput": true,
+        "title": "Remote-In-Hand Solo Creator Pinterest Pin v2 - clearer 4-leg base"
+      }
+    },
+    {
+      "id": "shape:WvH4_LASTQDkMTBaMur12",
+      "type": "text",
+      "bounds": {
+        "x": 690.4603907111502,
+        "y": 439.1983051498173,
+        "w": 459.6171875,
+        "h": 32.3984375
+      },
+      "text": "tripod高度应该配合人的高度，这个太矮了",
+      "color": "black",
+      "meta": {}
+    },
+    {
+      "id": "shape:image_otPIp-o5",
+      "type": "image",
+      "role": "ai_image",
+      "bounds": {
+        "x": 40,
+        "y": 80,
+        "w": 260,
+        "h": 325
+      },
+      "version": 1,
+      "assetPath": "assets/images/VLOGARA_real_product_full_4-leg_tripod_reference_1782354914643.jpg",
+      "assetUrl": "/api/canvas/asset-file/images/VLOGARA_real_product_full_4-leg_tripod_reference_1782354914643.jpg",
+      "meta": {
+        "aiCanvasRole": "ai_image",
+        "version": 1,
+        "assetPath": "assets/images/VLOGARA_real_product_full_4-leg_tripod_reference_1782354914643.jpg",
+        "assetUrl": "/api/canvas/asset-file/images/VLOGARA_real_product_full_4-leg_tripod_reference_1782354914643.jpg",
+        "imageSource": "upload",
+        "importId": "import_FTq-W88OnF",
+        "usableAsSkillInput": true,
+        "title": "VLOGARA real product full 4-leg tripod reference"
+      }
+    }
+  ],
+  "updatedAt": "2026-06-25T06:37:16.956Z"
+}

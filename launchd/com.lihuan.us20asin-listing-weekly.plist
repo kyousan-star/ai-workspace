@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+    "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.lihuan.us20asin-listing-weekly</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/zsh</string>
+        <string>/Users/lihuan/Documents/跨境业务/美国亚马逊业务运营/us 20 asin listing每周监控/20asin listing weekly 抓取/run_monitor.sh</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/lihuan/Documents/跨境业务/美国亚马逊业务运营/us 20 asin listing每周监控/20asin listing weekly 抓取</string>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key>
+        <integer>2</integer>
+        <key>Hour</key>
+        <integer>2</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/lihuan/Documents/跨境业务/美国亚马逊业务运营/us 20 asin listing每周监控/20asin listing weekly 抓取/data/logs/launchd.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/lihuan/Documents/跨境业务/美国亚马逊业务运营/us 20 asin listing每周监控/20asin listing weekly 抓取/data/logs/launchd_error.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/Library/Frameworks/Python.framework/Versions/3.14/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>HOME</key>
+        <string>/Users/lihuan</string>
+        <key>LANG</key>
+        <string>en_US.UTF-8</string>
+        <key>LC_ALL</key>
+        <string>en_US.UTF-8</string>
+        <key>LISTING_MONITOR_DOWNLOAD_IMAGES</key>
+        <string>0</string>
+        <key>LISTING_MONITOR_DELAY_SECONDS</key>
+        <string>45</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <false/>
+</dict>
+</plist>
+

@@ -1,0 +1,35 @@
+{
+  "targetShapeId": "shape:image_zVFkh3lL",
+  "targetImagePath": "assets/images/VLOGARA_real_4-leg_base_detail_reference_1782354915380.jpg",
+  "annotationPlan": [
+    {
+      "id": "ann_1",
+      "instruction": "使用该标记区域作为视觉参考进行自然修改",
+      "region": {
+        "x": 0.9299999999999999,
+        "y": 0,
+        "w": 0.14,
+        "h": 0.12
+      },
+      "sourceShapeIds": [
+        "shape:0wfAeC0_GWnZIexK1RDdt"
+      ],
+      "confidence": 0.58,
+      "kind": "arrow_text"
+    }
+  ],
+  "needsClarification": false,
+  "screenshotPath": "exports/annotated_view_P2cqNPzfgy.svg",
+  "readyToEdit": true,
+  "storagePath": "/Users/lihuan/ai-workspace/visual-lab/ai-canvas-data/canvases/canvas_C1DC6uXBzG",
+  "inputImagePath": "/Users/lihuan/ai-workspace/visual-lab/ai-canvas-data/canvases/canvas_C1DC6uXBzG/assets/images/VLOGARA_real_4-leg_base_detail_reference_1782354915380.jpg",
+  "editPrompt": "基于输入图片进行编辑。保持整体构图、主体位置、光影风格、画面质感和品牌视觉风格不变。\n\n请根据以下画布标注进行修改：\n1. 在图片相对区域 x=0.93, y=0.00, w=0.14, h=0.12：使用该标记区域作为视觉参考进行自然修改\n\n不要改变：\n- 未标注区域。\n- 品牌名和主要标题，除非用户明确要求。\n- 原图整体比例、风格和主体识别度。\n\n输出要求：与原图相同比例；修改自然；如果某条标注意图不明确，优先保持原样。",
+  "requestId": "edit_SYvmYAlVf3",
+  "status": "queued",
+  "canAutoEdit": true,
+  "source": "canvas_button",
+  "codexInstruction": "AI Canvas 手动提交的标注修图任务：用户已经完成一批画布标注，请根据这些标注修改当前图片，新图放右侧，旧图保留。",
+  "attempts": 0,
+  "createdAt": "2026-06-25T03:27:24.125Z",
+  "updatedAt": "2026-06-25T03:27:24.134Z"
+}

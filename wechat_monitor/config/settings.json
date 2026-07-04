@@ -1,0 +1,38 @@
+{
+  "timezone": "America/New_York",
+  "daily_run_time": "22:30",
+  "save_raw_html": false,
+  "max_articles_per_day": 20,
+  "lookback_days": 2,
+  "public_search": {
+    "enabled": true,
+    "engine": "sogou_weixin",
+    "recent_hours": 24,
+    "max_results_per_account": 6,
+    "request_delay_seconds": 1.5,
+    "include_all_recent_articles": true
+  },
+  "interest_areas": [
+    {
+      "name": "亚马逊电商政策",
+      "weight": 5,
+      "keywords": ["亚马逊", "Amazon", "政策", "新规", "规则", "合规", "美国站", "封号", "审核", "账户", "FBA", "佣金", "物流", "库存"]
+    },
+    {
+      "name": "规则/运营打法",
+      "weight": 5,
+      "keywords": ["运营", "打法", "广告", "ACOS", "TACOS", "CPC", "关键词", "Listing", "转化率", "流量", "选品", "排名", "Deal"]
+    },
+    {
+      "name": "方法论/AI赋能",
+      "weight": 4,
+      "keywords": ["方法论", "流程", "SOP", "AI", "Agent", "自动化", "提效", "Rufus", "COSMO", "ChatGPT", "大模型"]
+    },
+    {
+      "name": "AI领域",
+      "weight": 4,
+      "keywords": ["AI", "OpenAI", "Claude", "Gemini", "模型", "智能体", "MCP", "AIGC", "推理", "多模态"]
+    }
+  ],
+  "low_value_keywords": ["招商", "报名", "扫码", "课程", "训练营", "峰会", "直播预约", "福利", "社群"]
+}

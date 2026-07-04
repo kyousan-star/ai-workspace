@@ -196,7 +196,8 @@ def cross_check(kw_data: dict, monitored: set[str], own: set[str]) -> dict:
 
 # ─── 飞书推送 ────────────────────────────────────────────────────────────────
 
-def build_feishu_card(results: list[dict], hits: list[dict], own: set[str], monitored: set[str]) -> dict:
+def build_feishu_card(results: list[dict], hits: list[dict], own: set[str],
+                      monitored: set[str], wow_diffs: list[dict | None] | None = None) -> dict:
     elements = [
         {
             "tag": "div",
@@ -208,59 +209,95 @@ def build_feishu_card(results: list[dict], hits: list[dict], own: set[str], moni
         {"tag": "hr"},
     ]
 
-    for kw_data, hit in zip(results, hits):
-        keyword = kw_data["keyword"]
-        group = kw_data["group"]
-        weekly = kw_data["weekly_search"]
-        monthly = kw_data["monthly_search"]
-        cpc = kw_data["cpc"]
-        products = kw_data["products"]
-        own_hits = hit["own"]
-        monitored_hits = hit["monitored"]
-
-        lines = [f"**🔑 {keyword}**　`{group}`"]
-        lines.append(
-            f"周搜：**{weekly:,}** | 月搜：**{monthly:,}** | CPC：**${cpc:.2f}** | 竞品数：{kw_data['competition']}"
-        )
-
-        # 自有 ASIN
-        if own_hits:
-            lines.append("**✅ 我的 ASIN 在自然位：**")
-            for p in own_hits:
-                lines.append(
-                    f"- **#{p['rank']}** {p['asin']}　月销 {p['monthly_sales']:,}　${p['price']:.2f}"
-                )
-        elif own:
-            lines.append("⚠️ **我的 ASIN 未进入 Top %d 自然位**" % (SEARCH_RESULT_PAGES * 20))
-
-        # 监控竞品出现在排名中
-        if monitored_hits:
-            lines.append("**📌 监控竞品自然位：**")
-            for p in monitored_hits[:5]:
-                lines.append(
-                    f"- #{p['rank']} {p['asin']} ({p['brand']})　月销 {p['monthly_sales']:,}"
-                )
-            if len(monitored_hits) > 5:
-                lines.append(f"- …共 {len(monitored_hits)} 个监控竞品上榜")
-
-        # Top3
-        if products:
-            lines.append("**Top 3 自然位：**")
-            for p in products[:3]:
-                lines.append(
-                    f"- #{p['rank']} {p['asin']} ({p['brand']})　月销 {p['monthly_sales']:,}　${p['price']:.2f}"
-                )
-
+    # 按 group 分节展示，避免 group 标签被误读为产品名
+    from itertools import groupby
+    GROUP_LABELS = {
+        "ST102": "ST102 品类（Cell Phone Tripod）",
+        "VK101": "VK101 品类（Vlogging Kit）",
+    }
+    indexed = list(zip(results, hits, wow_diffs if wow_diffs else [None] * len(results)))
+    for group_key, group_items in groupby(indexed, key=lambda x: x[0]["group"]):
+        group_label = GROUP_LABELS.get(group_key, group_key)
         elements.append({
             "tag": "div",
-            "text": {"tag": "lark_md", "content": "\n".join(lines)}
+            "text": {"tag": "lark_md", "content": f"**━━ {group_label} ━━**"}
         })
-        elements.append({"tag": "hr"})
+
+        for kw_data, hit, diff in group_items:
+            keyword = kw_data["keyword"]
+            weekly = kw_data["weekly_search"]
+            monthly = kw_data["monthly_search"]
+            cpc = kw_data["cpc"]
+            products = kw_data["products"]
+            own_hits = hit["own"]
+            monitored_hits = hit["monitored"]
+
+            # 搜索量行（带 WoW）
+            if diff:
+                w_line = _fmt_search_delta(weekly, diff["weekly_delta"], diff["weekly_pct"])
+                m_line = _fmt_search_delta(monthly, diff["monthly_delta"], diff["monthly_pct"])
+                cpc_delta = diff["cpc_delta"]
+                if cpc_delta == 0:
+                    cpc_line = f"**${cpc:.2f}**"
+                else:
+                    arrow = "↑" if cpc_delta > 0 else "↓"
+                    cpc_line = f"**${cpc:.2f}**（{arrow}${abs(cpc_delta):.2f}）"
+            else:
+                w_line = f"**{weekly:,}**"
+                m_line = f"**{monthly:,}**"
+                cpc_line = f"**${cpc:.2f}**"
+
+            lines = [
+                f"**🔑 {keyword}**",
+                f"周搜：{w_line} | 月搜：{m_line} | CPC：{cpc_line} | 竞品数：{kw_data['competition']}",
+            ]
+
+            # 自有 ASIN
+            if own_hits:
+                lines.append("**✅ 我的 ASIN 在自然位：**")
+                for p in own_hits:
+                    lines.append(f"- **#{p['rank']}** {p['asin']}　月销 {p['monthly_sales']:,}　${p['price']:.2f}")
+            elif own:
+                lines.append(f"⚠️ **我的 ASIN 未进入 Top {SEARCH_RESULT_PAGES * 20} 自然位**")
+
+            # 监控竞品排名
+            if monitored_hits:
+                lines.append("**📌 监控竞品自然位：**")
+                for p in monitored_hits[:5]:
+                    rank_note = ""
+                    if diff:
+                        rc = next((c for c in diff["rank_changes"] if c["asin"] == p["asin"]), None)
+                        if rc and rc.get("status") == "new":
+                            rank_note = " 🆕新上榜"
+                        elif rc and rc.get("delta") and rc["delta"] != 0:
+                            d = rc["delta"]
+                            rank_note = f" ({'↑' if d > 0 else '↓'}{abs(d)}位)"
+                    lines.append(f"- #{p['rank']} {p['asin']} ({p['brand']})　月销 {p['monthly_sales']:,}{rank_note}")
+                if len(monitored_hits) > 5:
+                    lines.append(f"- …共 {len(monitored_hits)} 个上榜")
+                # 退出的竞品
+                if diff:
+                    dropped = [c for c in diff["rank_changes"] if c.get("status") == "dropped"]
+                    for c in dropped[:3]:
+                        lines.append(f"- ~~#{c['prev']} {c['asin']}~~ 本周退出 Top {SEARCH_RESULT_PAGES * 20}")
+
+            # Top3
+            if products:
+                lines.append("**Top 3 自然位：**")
+                for p in products[:3]:
+                    lines.append(f"- #{p['rank']} {p['asin']} ({p['brand']})　月销 {p['monthly_sales']:,}　${p['price']:.2f}")
+
+            elements.append({"tag": "div", "text": {"tag": "lark_md", "content": "\n".join(lines)}})
+            elements.append({"tag": "hr"})
 
     # 尾注
+    prev_date = (wow_diffs[0] or {}).get("prev_run_date", "") if wow_diffs else ""
+    note_text = f"Sorftime 关键词情报 | {RUN_TIMESTAMP} | Top {SEARCH_RESULT_PAGES * 20}"
+    if prev_date:
+        note_text += f" | 对比基准：{prev_date}"
     elements.append({
         "tag": "note",
-        "elements": [{"tag": "plain_text", "content": f"Sorftime 关键词情报 | {RUN_TIMESTAMP} | 自然位 Top {SEARCH_RESULT_PAGES * 20}"}]
+        "elements": [{"tag": "plain_text", "content": note_text}]
     })
 
     return {
@@ -291,6 +328,78 @@ def send_feishu(payload: dict):
             print(f"\n⚠ 飞书返回: {result}")
     except Exception as e:
         print(f"\n✗ 飞书推送失败: {e}")
+
+
+# ─── WoW 差异计算 ────────────────────────────────────────────────────────────────
+
+def load_previous_archive() -> dict | None:
+    """查找 raw/ 下上一次的 sorftime 存档（不含今天），返回其内容。"""
+    raw_dir = SCRIPT_DIR / "raw"
+    if not raw_dir.exists():
+        return None
+    archives = sorted(raw_dir.glob("sorftime_keyword_intel_*.json"), reverse=True)
+    today_name = f"sorftime_keyword_intel_{RUN_TIMESTAMP}.json"
+    for p in archives:
+        if p.name != today_name:
+            try:
+                return json.loads(p.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+    return None
+
+
+def compute_wow_diff(results: list[dict], prev_archive: dict) -> list[dict | None]:
+    """对每个关键词计算与上一次存档的差异，返回与 results 等长的列表。"""
+    prev_map = {kw["keyword"]: kw for kw in prev_archive.get("keywords", [])}
+    diffs = []
+    for r in results:
+        prev = prev_map.get(r["keyword"])
+        if prev is None:
+            diffs.append(None)
+            continue
+
+        def _pct(curr, p):
+            return (curr - p) / p if p else None
+
+        weekly_delta = r["weekly_search"] - prev["weekly_search"]
+        monthly_delta = r["monthly_search"] - prev["monthly_search"]
+        cpc_delta = round(r["cpc"] - prev["cpc"], 2)
+
+        # 监控竞品排名变化
+        prev_monitored = {p["asin"]: p["rank"] for p in prev.get("monitored_hits", [])}
+        curr_monitored = {p["asin"]: p["rank"] for p in r.get("monitored_hits", [])}
+        all_asins = set(prev_monitored) | set(curr_monitored)
+        rank_changes = []
+        for asin in all_asins:
+            prank = prev_monitored.get(asin)
+            crank = curr_monitored.get(asin)
+            if prank is None:
+                rank_changes.append({"asin": asin, "prev": None, "curr": crank, "status": "new"})
+            elif crank is None:
+                rank_changes.append({"asin": asin, "prev": prank, "curr": None, "status": "dropped"})
+            else:
+                rank_changes.append({"asin": asin, "prev": prank, "curr": crank, "delta": prank - crank, "status": "tracked"})
+        # 仅保留有变化的
+        rank_changes = [c for c in rank_changes if c.get("status") in ("new", "dropped") or abs(c.get("delta", 0)) >= 1]
+
+        diffs.append({
+            "prev_run_date": prev_archive.get("run_date", "上周"),
+            "weekly_delta": weekly_delta,
+            "monthly_delta": monthly_delta,
+            "weekly_pct": _pct(r["weekly_search"], prev["weekly_search"]),
+            "monthly_pct": _pct(r["monthly_search"], prev["monthly_search"]),
+            "cpc_delta": cpc_delta,
+            "rank_changes": rank_changes,
+        })
+    return diffs
+
+
+def _fmt_search_delta(curr: int, delta: int, pct: float | None) -> str:
+    if delta == 0 or curr == 0:
+        return f"**{curr:,}**（持平）"
+    arrow = "↑" if delta > 0 else "↓"
+    pct_str = f" {abs(pct):.0%}" if pct is not None else ""
+    return f"**{curr:,}**（{arrow}{abs(delta):,}{pct_str}）"
 
 
 # ─── 本地 JSON 存档 ──────────────────────────────────────────────────────────
@@ -339,11 +448,21 @@ def main():
         results.append(kw_data)
         hits.append(hit)
 
-    # 保存存档
+    # 保存存档（先存，再计算 WoW，避免与今天自己对比）
     save_archive(results, hits)
 
+    # 加载上周存档计算 WoW
+    prev_archive = load_previous_archive()
+    wow_diffs = None
+    if prev_archive:
+        wow_diffs = compute_wow_diff(results, prev_archive)
+        prev_date = prev_archive.get("run_date", "上周")
+        print(f"  WoW 对比基准：{prev_date}")
+    else:
+        print("  ⚠ 未找到历史存档，本次不展示 WoW 对比")
+
     # 推送飞书
-    payload = build_feishu_card(results, hits, own, monitored)
+    payload = build_feishu_card(results, hits, own, monitored, wow_diffs=wow_diffs)
     send_feishu(payload)
 
     print("\n✅ Sorftime 情报任务完成")

@@ -1,0 +1,7 @@
+.env
+data/monitor.db
+data/*.db
+data/*.sqlite
+*.log
+__pycache__/
+*.pyc

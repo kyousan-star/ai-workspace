@@ -1,0 +1,25 @@
+{
+  "runId": "run_ig_ikMdOzF",
+  "type": "import_image",
+  "model": "external",
+  "input": {
+    "source": "upload",
+    "originalName": "VLOGARA real 4-leg base detail reference",
+    "inputPath": "/Users/lihuan/Documents/跨境业务/美国亚马逊业务运营/品类cell phone tripod/ST102/图片/终版/AMZ 图片/主副图/主图2.jpg"
+  },
+  "output": {
+    "importId": "import_pRsLn5-K5T",
+    "shapeId": "shape:image_zVFkh3lL",
+    "imageShapeId": "shape:image_zVFkh3lL",
+    "assetPath": "assets/images/VLOGARA_real_4-leg_base_detail_reference_1782354915380.jpg",
+    "assetUrl": "/api/canvas/asset-file/images/VLOGARA_real_4-leg_base_detail_reference_1782354915380.jpg",
+    "bounds": {
+      "x": 40,
+      "y": 440,
+      "w": 260,
+      "h": 325
+    },
+    "pendingSync": true
+  },
+  "createdAt": "2026-06-25T02:35:15.394Z"
+}

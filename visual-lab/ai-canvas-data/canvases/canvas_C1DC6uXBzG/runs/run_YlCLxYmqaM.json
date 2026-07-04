@@ -1,0 +1,22 @@
+{
+  "runId": "run_YlCLxYmqaM",
+  "type": "insert_image_into_holder",
+  "model": "external",
+  "input": {
+    "holderShapeId": "shape:holder_cJZdkzQj",
+    "imagePath": "/Users/lihuan/.codex/generated_images/019eed5f-50fa-7200-9d26-7706a59046b4/ig_0eb67e38d2141464016a3c9525b294819b92e85c2431b976e7.png"
+  },
+  "output": {
+    "imageShapeId": "shape:image_AFAEwonm",
+    "assetPath": "assets/images/ig_0eb67e38d2141464016a3c9525b294819b92e85c2431b976e7_1782355945353.png",
+    "bounds": {
+      "x": 360,
+      "y": 80,
+      "w": 400,
+      "h": 600
+    },
+    "version": 1,
+    "pendingSync": true
+  },
+  "createdAt": "2026-06-25T02:52:25.355Z"
+}

@@ -1,0 +1,263 @@
+[
+  {
+    "name": "AMZ123跨境电商",
+    "wechat_id": "amz123net",
+    "tags": "跨境电商资讯/平台政策/行业趋势",
+    "priority": "p0",
+    "sample_article_url": "https://mp.weixin.qq.com/s/qk2foMAegQo1WUlrJ9YdHw",
+    "biz": "Mzg4MzY1MjcwMg==",
+    "biz_id": "3883652702"
+  },
+  {
+    "name": "AMZ那些事",
+    "wechat_id": "Easy-Amazon",
+    "tags": "AI Agent 提效跨境运营",
+    "priority": "p1",
+    "sample_article_url": "https://mp.weixin.qq.com/s/2DodlIbnBNPbAGFu7dJuAA",
+    "biz": "MzU1MDQ0OTM4MA==",
+    "biz_id": "3550449380"
+  },
+  {
+    "name": "AMZ小麦成长记",
+    "wechat_id": "AmzBSR2028",
+    "aliases": [
+      "锡恩咨询集团深圳分公司"
+    ],
+    "tags": "AMZ运营与广告实战经验",
+    "priority": "p1",
+    "sample_article_url": "https://mp.weixin.qq.com/s/xTsBf3NwGj0hpiZbJ0RznQ",
+    "biz": "MjM5MzQ4NjcyMA==",
+    "biz_id": "2393486720"
+  },
+  {
+    "name": "阿志跨境选品圈",
+    "wechat_id": "AMZproduct2",
+    "tags": "亚马逊选品与供应链",
+    "priority": "p1",
+    "sample_article_url": "https://mp.weixin.qq.com/s/ukgj7oNNFoJZWs2WihkU0w",
+    "biz": "Mzk4ODgxNzQwNw==",
+    "biz_id": "3988817407"
+  },
+  {
+    "name": "宝玉AI",
+    "wechat_id": "baoyu-ai-",
+    "tags": "AI技术与咨询分享",
+    "priority": "p0",
+    "sample_article_url": "https://mp.weixin.qq.com/s/tulmmlGehL8JEz_burLbDg",
+    "biz": "Mzk1NzgxMjQ0OA==",
+    "biz_id": "3957812448"
+  },
+  {
+    "name": "饼干哥哥AGI",
+    "wechat_id": "BingGanGeGeData",
+    "aliases": [
+      "饼干哥哥数据分析"
+    ],
+    "tags": "AI落地亚马逊业务分享",
+    "priority": "p1",
+    "sample_article_url": "https://mp.weixin.qq.com/s/tr9idnCJR6_L-Vn181Sa2w",
+    "biz": "MjM5NDI4MTY3NA==",
+    "biz_id": "2394281674"
+  },
+  {
+    "name": "Deal说",
+    "wechat_id": "dealshuo",
+    "tags": "各国deal站",
+    "priority": "p1",
+    "sample_article_url": "https://mp.weixin.qq.com/s/DGNcktg0SHW7UfpxguVUtw",
+    "biz": "Mzg5NzU4MDU1Nw==",
+    "biz_id": "3897580557"
+  },
+  {
+    "name": "硅基流动",
+    "wechat_id": "SiliconFlow",
+    "tags": "AI咨询",
+    "priority": "p1",
+    "sample_article_url": "https://mp.weixin.qq.com/s/P9oycL2vRVxT7eyF4mkDrQ",
+    "biz": "Mzk0NzYzNTMyMA==",
+    "biz_id": "3947635320"
+  },
+  {
+    "name": "硅基妙妙屋",
+    "wechat_id": "Silicon_42",
+    "tags": "AI赋能亚马逊业务",
+    "priority": "p0",
+    "sample_article_url": "https://mp.weixin.qq.com/s/9ToBbF6CHfAxxZEwJn_lCg",
+    "biz": "MzYyMTcxMTQ5Ng==",
+    "biz_id": "3621711496"
+  },
+  {
+    "name": "跨境电商跨境屋",
+    "wechat_id": "kuajingzhaopin",
+    "tags": "跨境泛信息",
+    "priority": "p1",
+    "sample_article_url": "https://mp.weixin.qq.com/s/BFf7bloezSQYcnD44W_p_A",
+    "biz": "MzI2NDA4NDYyOQ==",
+    "biz_id": "3264084629"
+  },
+  {
+    "name": "跨境电商头条",
+    "wechat_id": "szcbea",
+    "aliases": [
+      "跨境电商要闻"
+    ],
+    "tags": "",
+    "priority": "p1",
+    "sample_article_url": "https://mp.weixin.qq.com/s/HHbiMtlKdEle5TSWtd75XQ",
+    "biz": "MjM5ODcxMjg4Ng==",
+    "biz_id": "2398712886"
+  },
+  {
+    "name": "跨境电商赢商荟",
+    "wechat_id": "dianshangwin_com",
+    "tags": "传递跨境电商技巧，揭秘跨境电商黑幕",
+    "priority": "p1",
+    "sample_article_url": "https://mp.weixin.qq.com/s/LMqekjSZP8ZnLMRho7t9nw",
+    "biz": "MzIyOTA3NDgzNA==",
+    "biz_id": "3229074834"
+  },
+  {
+    "name": "蓝海亿观",
+    "wechat_id": "egainnews",
+    "aliases": [
+      "蓝海亿观网"
+    ],
+    "tags": "跨境电商资讯",
+    "priority": "p1",
+    "sample_article_url": "https://mp.weixin.qq.com/s/nD_n30EWpWQqrqshgRyoxQ",
+    "biz": "MzU2NzgwNjM1MQ==",
+    "biz_id": "3567806351"
+  },
+  {
+    "name": "品牌方舟BrandArk",
+    "wechat_id": "BrandArkcom",
+    "tags": "跨境出海品牌案例分析、行业趋势解读",
+    "priority": "p0",
+    "sample_article_url": "https://mp.weixin.qq.com/s/DVJdUHhXhiu-fsiW7TzfKw",
+    "biz": "Mzg3Mzc0Nzc3Nw==",
+    "biz_id": "3873747777"
+  },
+  {
+    "name": "品牌工厂BrandsFactory",
+    "wechat_id": "BrandFactory2049",
+    "tags": "中国品牌出海",
+    "priority": "p1",
+    "sample_article_url": "https://mp.weixin.qq.com/s/93bU8FfD5fMvnbQFoFZCmg",
+    "biz": "Mzg3Nzg0MDE2Ng==",
+    "biz_id": "3877840166"
+  },
+  {
+    "name": "商海蟹",
+    "wechat_id": "close_2391234759",
+    "aliases": [
+      "商海蟹AGI"
+    ],
+    "tags": "跨境电商运营分享",
+    "priority": "p0",
+    "sample_article_url": "https://mp.weixin.qq.com/s/v9WvQ8gdZcCd1DZPs7WsUQ",
+    "biz": "MjM5MTIzNDc1OQ==",
+    "biz_id": "2391234759"
+  },
+  {
+    "name": "数字生命卡兹克",
+    "wechat_id": "Rockhazix",
+    "tags": "ai资讯",
+    "priority": "p1",
+    "sample_article_url": "https://mp.weixin.qq.com/s/vTv0Vu4RgrMkmLbXGvnSug",
+    "biz": "MzIyMzA5NjEyMA==",
+    "biz_id": "3223096120"
+  },
+  {
+    "name": "Sorftime跨境笔记",
+    "wechat_id": "gh_55dd71f21c12",
+    "aliases": [
+      "Sorftime资讯"
+    ],
+    "tags": "跨境电商全球资讯/选品策略/政策解读/攻略指南/数据情报",
+    "priority": "p0",
+    "sample_article_url": "https://mp.weixin.qq.com/s/p4CKwVP5FFevIqsR56E8Lw",
+    "biz": "Mzg2OTA2OTM0MA==",
+    "biz_id": "3869069340"
+  },
+  {
+    "name": "天机跨境",
+    "wechat_id": "shizhexueyuan",
+    "aliases": [
+      "天机网"
+    ],
+    "tags": "亚马逊运营分享",
+    "priority": "p0",
+    "sample_article_url": "https://mp.weixin.qq.com/s/m7Xp_Q2FlR2xDcphy3231Q",
+    "biz": "MzU2NzQ5MzY2Ng==",
+    "biz_id": "3567493666"
+  },
+  {
+    "name": "维正 WaytoAIC",
+    "wechat_id": "WZ_Crossing",
+    "tags": "用ai赋能电商",
+    "priority": "p1",
+    "sample_article_url": "https://mp.weixin.qq.com/s/nLRANfGocFyqIgzlwijm_Q",
+    "biz": "MzE5ODYxMjAyOA==",
+    "biz_id": "3198612028"
+  },
+  {
+    "name": "小播讲哲学",
+    "wechat_id": "xiaobodushuhao",
+    "aliases": [
+      "小播读书"
+    ],
+    "tags": "哲学",
+    "priority": "p1",
+    "sample_article_url": "https://mp.weixin.qq.com/s/3CnLbXX39xOTpeh-4O9iBw",
+    "biz": "MzkwNjAxNTA4NA==",
+    "biz_id": "3906015084"
+  },
+  {
+    "name": "西西酱的amz日记",
+    "wechat_id": "gh_fec4a35af8b8",
+    "tags": "亚马逊运营分享",
+    "priority": "p0",
+    "sample_article_url": "https://mp.weixin.qq.com/s/kFUzbBGPgMmgmh0kr3L7uQ",
+    "biz": "MzI3MTUxMjYzNQ==",
+    "biz_id": "3271512635"
+  },
+  {
+    "name": "亚马逊全球开店",
+    "wechat_id": "AmazonGS",
+    "tags": "亚马逊全球开店官方公众号",
+    "priority": "p0",
+    "sample_article_url": "https://mp.weixin.qq.com/s/gv2eECLrgN2J4KZ0pbvoFw",
+    "biz": "Mzg5ODA4MDgzNQ==",
+    "biz_id": "3898080835"
+  },
+  {
+    "name": "亚觅出海阿米跨境",
+    "wechat_id": "amishow321",
+    "aliases": [
+      "跨境阿米SHOW"
+    ],
+    "tags": "跨境出海服务",
+    "priority": "p1",
+    "sample_article_url": "https://mp.weixin.qq.com/s/5AXKNQk32s-_Pc3L-pTNbA",
+    "biz": "Mzg2MzE5MDA1Mg==",
+    "biz_id": "3863190052"
+  },
+  {
+    "name": "Zach的进化笔记",
+    "wechat_id": "gh_9f43dc4ea8c1",
+    "tags": "用 AI 把跨境电商“重做一遍”",
+    "priority": "p0",
+    "sample_article_url": "https://mp.weixin.qq.com/s/gMZPFKLnQad67acCsvcL7g",
+    "biz": "MzY5MTAzNzczNQ==",
+    "biz_id": "3691037735"
+  },
+  {
+    "name": "知无不言",
+    "wechat_id": "zwbydyh",
+    "tags": "跨境电商赋能",
+    "priority": "p0",
+    "sample_article_url": "https://mp.weixin.qq.com/s/0S8xj_V969SGCn6qESGumQ",
+    "biz": "Mzg4ODg4OTA0Ng==",
+    "biz_id": "3888889046"
+  }
+]

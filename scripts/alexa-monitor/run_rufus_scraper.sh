@@ -9,13 +9,7 @@ PYTHON=/Library/Frameworks/Python.framework/Versions/3.14/bin/python3
 
 cd "$SCRIPT_DIR"
 
-echo "=== $(date '+%Y-%m-%d %H:%M:%S') 开始：Alexa 问题抓取 ==="
-$PYTHON -u rufus_scraper.py
-RUFUS_EXIT=$?
-echo "=== $(date '+%Y-%m-%d %H:%M:%S') Alexa 抓取结束（exit $RUFUS_EXIT）==="
-
-echo ""
-echo "=== $(date '+%Y-%m-%d %H:%M:%S') 开始：Sorftime 关键词情报 ==="
-$PYTHON -u sorftime_keyword_intel.py
-SORFTIME_EXIT=$?
-echo "=== $(date '+%Y-%m-%d %H:%M:%S') Sorftime 情报结束（exit $SORFTIME_EXIT）==="
+echo "=== $(date '+%Y-%m-%d %H:%M:%S') 开始：Alexa 综合情报（统一脚本）==="
+$PYTHON -u alexa_intel_unified.py
+UNIFIED_EXIT=$?
+echo "=== $(date '+%Y-%m-%d %H:%M:%S') Alexa 综合情报结束（exit $UNIFIED_EXIT）==="
