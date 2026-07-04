@@ -8,3 +8,6 @@ scripts/alexa-monitor/__pycache__/
 
 .vscode/
 .DS_Store
+
+# 嵌套独立 git 仓库, 不纳入本仓库追踪
+plugins/AI-Canvas/
