@@ -461,9 +461,12 @@ def main():
     else:
         print("  ⚠ 未找到历史存档，本次不展示 WoW 对比")
 
-    # 推送飞书
+    # 推送飞书。作为 Competitor Radar 的前置信号运行时，只落盘 Top60 JSON，避免重复推送。
     payload = build_feishu_card(results, hits, own, monitored, wow_diffs=wow_diffs)
-    send_feishu(payload)
+    if os.getenv("SORFTIME_KEYWORD_SKIP_FEISHU", "0") == "1":
+        print("\n↷ 已跳过飞书关键词情报推送（SORFTIME_KEYWORD_SKIP_FEISHU=1）")
+    else:
+        send_feishu(payload)
 
     print("\n✅ Sorftime 情报任务完成")
 

@@ -4,3 +4,5 @@
 # B0XXXXXXXXX
 # VK101 相关 ASIN
 # B0XXXXXXXXX
+B0GY7Y6C63  # Vlogara 自有 ASIN（ST102品类，4-Leg Phone Tripod，2026-06上线）
+B0GZNZ6ZKL  # Vlogara 自有 ASIN（VK101品类，3-in-1 Vlogging Kit，2026-07-09 补入）

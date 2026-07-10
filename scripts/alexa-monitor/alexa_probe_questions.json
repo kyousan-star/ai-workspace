@@ -1,0 +1,15 @@
+{
+  "_说明": "Phase 5 本品 Alexa 问答质检的固定探针问题。expect: yes/no = 该问题的事实答案极性（用于检测 Alexa 答错），null = 不校验极性。问题来源：竞品高频 Gap + 差评风险点。改这个文件即可增删探针，无需改脚本。",
+  "B0GY7Y6C63": [
+    {"q": "Does it come with a carrying case?", "expect": "no", "note": "竞品高频40%，真实缺失，观察正面化话术与引流"},
+    {"q": "Is the remote rechargeable?", "expect": "no", "note": "CR2032纽扣电池（用户2026-07-09确认），观察后台属性引用"},
+    {"q": "How tall does it extend? Is it really 71 inches?", "expect": "yes", "note": "K.G.差评声称仅35寸，监控回答是否被差评侵蚀"},
+    {"q": "Is it stable when fully extended?", "expect": "yes", "note": "核心卖点四脚稳定，监控差评引用"}
+  ],
+  "B0GZNZ6ZKL": [
+    {"q": "Does it come with a carrying case?", "expect": "yes", "note": "标题写 Carrying Bag Included，应答 Yes"},
+    {"q": "Is the remote rechargeable?", "expect": "yes", "note": "标题写 Rechargeable Remote，应答 Yes"},
+    {"q": "Does the microphone reduce background noise?", "expect": "yes", "note": "标题写 Noise Reduction Mic"},
+    {"q": "Is it hard to set up?", "expect": "no", "note": "卖点 Plug In & Record, No Setup，反向提问测试"}
+  ]
+}

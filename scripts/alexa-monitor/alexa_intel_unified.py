@@ -10,6 +10,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import time
 import unicodedata
 from collections import Counter, defaultdict
@@ -59,6 +60,24 @@ DOM_READY_TIMEOUT   = int(os.getenv("ALEXA_DOM_READY_TIMEOUT_MS", "15000"))
 ALEXA_HINT_TIMEOUT  = int(os.getenv("ALEXA_HINT_TIMEOUT_MS", "20000"))
 BLOCKED_RESOURCE_TYPES = {"image", "media", "font"}
 MIN_SUCCESSFUL_ASINS   = int(os.getenv("ALEXA_MIN_SUCCESSFUL_ASINS", "15"))
+
+# Phase 5: 本品 Alexa 问答质检
+PROBE_QUESTIONS_FILE   = SCRIPT_DIR / "alexa_probe_questions.json"
+QA_ENABLED             = os.getenv("ALEXA_QA_DISABLED", "0").lower() not in {"1", "true", "yes"}
+QA_ANSWER_TIMEOUT_S    = int(os.getenv("ALEXA_QA_ANSWER_TIMEOUT_S", "50"))
+QA_DELAY_BETWEEN_Q     = int(os.getenv("ALEXA_QA_DELAY_BETWEEN_Q", "8"))
+QA_MAX_Q_PER_ASIN      = int(os.getenv("ALEXA_QA_MAX_Q_PER_ASIN", "5"))
+# Alexa 面板要求高新鲜度认证（max_auth_age），静态 cookie 文件过不了，
+# 必须用持久化 profile（先跑 --login-setup 人工登录一次，之后每周运行自动保鲜）
+QA_PROFILE_DIR         = SCRIPT_DIR / "qa_browser_profile"
+
+# Phase 6: 洞察合成（Python 预处理 + Claude CLI）
+INSIGHT_ENABLED        = os.getenv("ALEXA_INSIGHT_DISABLED", "0").lower() not in {"1", "true", "yes"}
+CLAUDE_BIN             = os.getenv("ALEXA_CLAUDE_BIN",
+                                   "/Users/lihuan/.nvm/versions/node/v22.22.0/bin/claude")
+LISTING_TASK_DIR       = SCRIPT_DIR.parent / "40 asin listing weekly 抓取"
+LISTING_SNAPSHOT_DIR   = LISTING_TASK_DIR / "data" / "snapshots"
+LISTING_DIFF_DIR       = LISTING_TASK_DIR / "data" / "raw" / "diffs"
 
 # 输出路径
 GITHUB_REPO       = Path("/Users/lihuan/Documents/学习提升/AI/claude/桌面 claude code/Scheduled/美日金融市场daily brief")
@@ -434,6 +453,543 @@ def run_playwright_phase(roster: dict) -> tuple[dict, dict]:
     return asin_questions, run_statuses
 
 
+# ─── Phase 5: 本品 Alexa 问答质检 ─────────────────────────────────────────────
+# 对自有 ASIN 的固定探针问题实际向 Alexa 提问，抓回答文本+建议chip，
+# 分级 A明确/B含糊/C答不出/E未获取，对照 expect 极性检测 D答错，
+# 并标记竞品引流chip与差评引用。2026-07-09 实测：面板 DOM 仍用 rufus-* 命名。
+
+def load_probe_questions() -> dict:
+    if not PROBE_QUESTIONS_FILE.exists():
+        return {}
+    try:
+        raw = json.loads(PROBE_QUESTIONS_FILE.read_text(encoding="utf-8"))
+    except Exception as e:
+        print(f"  ⚠️ 探针问题文件解析失败: {e}")
+        return {}
+    probes = {}
+    for asin, items in raw.items():
+        if asin.startswith("_") or not isinstance(items, list):
+            continue
+        cleaned = []
+        for it in items[:QA_MAX_Q_PER_ASIN]:
+            if isinstance(it, str):
+                cleaned.append({"q": it, "expect": None})
+            elif isinstance(it, dict) and it.get("q"):
+                cleaned.append({"q": it["q"], "expect": it.get("expect")})
+        if cleaned:
+            probes[asin] = cleaned
+    return probes
+
+
+_HEDGE_PAT   = re.compile(r"\b(may |might |it'?s unclear|not specified|check the (product )?listing|"
+                          r"contact the seller|i'?m not (sure|certain)|does not specify|unable to confirm)", re.I)
+_NOINFO_PAT  = re.compile(r"(don'?t have (that |enough )?(information|details)|couldn'?t find|"
+                          r"no information (available|about)|not able to find)", re.I)
+_REVIEW_PAT  = re.compile(r"(customers? (report|say|mention|complain|note)|some (customers|users|buyers|reviewers)|"
+                          r"reviews? (mention|indicate|suggest)|reviewers|according to (customer )?reviews)", re.I)
+_NEG_PAT     = re.compile(r"^\s*no\b|\b(does not|doesn'?t|is not|isn'?t|not designed|not included|"
+                          r"cannot|can'?t)\b", re.I)
+_POS_PAT     = re.compile(r"^\s*yes\b|\bit (really )?does\b|\bis included\b|\bcomes with\b", re.I)
+
+
+def _answer_polarity(answer: str):
+    """极性只看首句（回答正文常引用五点里的 not/can't 造成全文误判）。"""
+    first = re.split(r"(?<=[.!?])\s+|•", answer.strip(), maxsplit=1)[0]
+    if _POS_PAT.search(first):
+        return "yes"
+    if _NEG_PAT.search(first):
+        return "no"
+    # 首句无极性再看全文，正向优先（Yes 开头被截断等情况）
+    if _POS_PAT.search(answer):
+        return "yes"
+    if _NEG_PAT.search(answer):
+        return "no"
+    return None
+
+
+def grade_alexa_answer(question: str, answer: str, chips: list, expect) -> dict:
+    """回答分级 + 风险标记。分级看确定性，polarity 对照 expect 判答错。"""
+    flags = []
+    if not answer:
+        return {"grade": "E", "polarity": None, "flags": ["未获取到回答"]}
+    if _NOINFO_PAT.search(answer):
+        grade = "C"
+        polarity = None
+    elif _HEDGE_PAT.search(answer):
+        grade = "B"
+        polarity = _answer_polarity(answer)
+    else:
+        grade = "A"
+        polarity = _answer_polarity(answer)
+    if expect and polarity and polarity != expect:
+        grade = "D"
+        flags.append(f"与已知事实相反（应为 {expect}）")
+    if _REVIEW_PAT.search(answer):
+        flags.append("⚠️ 回答引用了买家评论")
+    redirect = [c for c in chips if re.match(r"^(show|find|see|browse)\b", c, re.I)]
+    if redirect:
+        flags.append(f"🔀 竞品引流chip: {' / '.join(redirect[:2])}")
+    if grade == "C":
+        flags.append("listing/属性缺该信息，Alexa 答不出")
+    return {"grade": grade, "polarity": polarity, "flags": flags}
+
+
+def _qa_ask_one(page, question: str) -> dict:
+    """在已打开的 Alexa 面板里问一个问题，等流式回答完成后抓文本+chips。"""
+    js_snapshot = """() => {
+        const turns = [...document.querySelectorAll(
+            '#rufus-container .rufus-papyrus-turn, #rufus-container .rufus-papyrus-active-turn')];
+        const qs = [...document.querySelectorAll('#rufus-container .rufus-dialog-customer')]
+            .map(q => q.textContent.replace('Customer question','').trim());
+        const chips = [...document.querySelectorAll('#rufus-container button.rufus-pill')]
+            .map(b => b.textContent.trim()).filter(Boolean);
+        return {nQ: qs.length, nT: turns.length,
+                lastTurnText: turns.length ? turns[turns.length-1].textContent : '', chips};
+    }"""
+    before = page.evaluate(js_snapshot)
+    box = page.wait_for_selector("#rufus-text-area", timeout=10000)
+    box.fill(question)
+    page.keyboard.press("Enter")
+
+    # 必须同时满足：问题气泡+1、回答轮次+1（否则会把欢迎语当回答），再等文本稳定
+    deadline = time.time() + QA_ANSWER_TIMEOUT_S
+    last_text, stable_since = "", None
+    while time.time() < deadline:
+        page.wait_for_timeout(2000)
+        snap = page.evaluate(js_snapshot)
+        if snap["nQ"] <= before["nQ"] or snap["nT"] <= before["nT"]:
+            continue  # 回答轮次还没创建
+        cur = snap["lastTurnText"]
+        if cur and cur == last_text:
+            if stable_since and time.time() - stable_since >= 4:
+                break  # 连续两轮无变化，视为流式完成
+            stable_since = stable_since or time.time()
+        else:
+            last_text, stable_since = cur, None
+    snap = page.evaluate(js_snapshot)
+    raw = snap["lastTurnText"] if snap["nT"] > before["nT"] else ""
+    answer = re.sub(r"^\s*Customer question\s*", "", raw).strip()
+    if answer.startswith(question):
+        answer = answer[len(question):].strip()
+    answer = re.sub(r"\{\}", "", answer).strip()  # React 空占位符
+    return {"answer": answer, "chips": snap["chips"]}
+
+
+def _qa_probe_asin(context, asin: str, probes: list) -> dict:
+    """打开本品页 → 点 Ask something else 打开面板 → 逐题提问。"""
+    url = f"https://www.amazon.com/dp/{asin}"
+    print(f"  访问: {url}")
+    page = context.new_page()
+    results, status = [], "ok"
+    try:
+        try:
+            page.goto(url, timeout=NAVIGATION_TIMEOUT, wait_until="commit")
+        except Exception as e:
+            if "timeout" not in str(e).lower():
+                raise
+        try:
+            page.wait_for_load_state("domcontentloaded", timeout=DOM_READY_TIMEOUT)
+        except Exception:
+            pass
+        title = page.title()
+        if "503" in title or "robot" in title.lower():
+            return {"asin": asin, "status": "blocked", "results": []}
+
+        # 等 widget 出现并滚动触发 JS 水合（点击处理器懒加载，太早点无效）
+        try:
+            page.wait_for_selector("#dpx-nice-widget-container .ask-pill", timeout=ALEXA_HINT_TIMEOUT)
+        except Exception:
+            _save_debug(page, asin, "qa_no_widget")
+            return {"asin": asin, "status": "no_widget", "results": []}
+        page.evaluate("window.scrollTo(0, document.body.scrollHeight * 0.3)")
+        page.wait_for_timeout(2000)
+        page.evaluate("window.scrollTo(0, 0)")
+        page.wait_for_timeout(3000)
+
+        # 点击开面板：处理器可能仍未挂上，最多重试 4 次
+        opened = False
+        for attempt in range(4):
+            try:
+                page.click("#dpx-nice-widget-container .ask-pill", timeout=5000)
+            except Exception:
+                pass
+            try:
+                page.wait_for_selector("#rufus-text-area", timeout=6000)
+                opened = True
+                break
+            except Exception:
+                page.wait_for_timeout(3000)
+        if not opened:
+            _save_debug(page, asin, "qa_panel_not_open")
+            return {"asin": asin, "status": "panel_not_open", "results": []}
+        page.wait_for_timeout(2000)
+
+        # 顺路抓本品 listing 文本（title+五点+装箱清单），供洞察层做"问题×文本"交叉
+        listing_text = page.evaluate("""() => {
+            const t = (sel) => { const e = document.querySelector(sel); return e ? e.textContent.trim() : ''; };
+            const bullets = [...document.querySelectorAll('#feature-bullets li')].map(li => li.textContent.trim());
+            return {title: t('#productTitle'), bullets: bullets.slice(0, 8),
+                    box: t('.postpurchase-included-components-list, #whatsInTheBoxDeck')};
+        }""")
+
+        for i, probe in enumerate(probes):
+            q = probe["q"]
+            print(f"    [{i+1}/{len(probes)}] 问: {q}")
+            try:
+                got = _qa_ask_one(page, q)
+            except Exception as e:
+                got = {"answer": "", "chips": []}
+                print(f"      ⚠️ 提问失败: {e}")
+            g = grade_alexa_answer(q, got["answer"], got["chips"], probe.get("expect"))
+            print(f"      → 分级 {g['grade']}" + (f"　{'；'.join(g['flags'])}" if g["flags"] else ""))
+            results.append({"question": q, "expect": probe.get("expect"),
+                            "answer": got["answer"][:800], "chips": got["chips"][:6], **g})
+            if i < len(probes) - 1:
+                time.sleep(QA_DELAY_BETWEEN_Q)
+    except Exception as e:
+        status = "error"
+        print(f"    ⚠️ QA 探针异常: {e}")
+        try:
+            _save_debug(page, asin, "qa_error")
+        except Exception:
+            pass
+    finally:
+        try:
+            page.close()
+        except Exception:
+            pass
+    out = {"asin": asin, "status": status, "results": results}
+    try:
+        out["listing_text"] = listing_text
+    except NameError:
+        out["listing_text"] = {}
+    return out
+
+
+def _qa_launch_context(p):
+    """QA 专用持久化 profile（Alexa 面板要求高新鲜度认证，静态 cookie 过不了）。"""
+    return p.chromium.launch_persistent_context(
+        str(QA_PROFILE_DIR),
+        headless=HEADLESS,
+        args=["--no-sandbox", "--disable-gpu",
+              "--disable-blink-features=AutomationControlled",
+              "--window-size=1440,900"],
+        viewport={"width": 1440, "height": 900},
+        locale="en-US", timezone_id="America/New_York",
+    )
+
+
+def run_alexa_qa_phase(own_asins: set) -> dict:
+    """Phase 5 入口：独立浏览器会话对自有 ASIN 跑问答质检。"""
+    if not QA_ENABLED:
+        print("\n↷ Phase 5 已通过 ALEXA_QA_DISABLED 跳过")
+        return {}
+    if not QA_PROFILE_DIR.exists():
+        print("\n↷ Phase 5 跳过：QA 浏览器 profile 不存在，"
+              "先运行 `python3 alexa_intel_unified.py --login-setup` 人工登录一次")
+        return {}
+    probes_cfg = load_probe_questions()
+    targets = {a: probes_cfg[a] for a in sorted(own_asins) if a in probes_cfg}
+    if not targets:
+        print("\n↷ Phase 5 跳过：探针问题文件中没有匹配的自有 ASIN")
+        return {}
+    print(f"\n═══ Phase 5: 本品 Alexa 问答质检（{len(targets)} 个 ASIN）══════════")
+
+    qa_results = {}
+    with sync_playwright() as p:
+        context = _qa_launch_context(p)
+        context.add_init_script(
+            "Object.defineProperty(navigator, 'webdriver', { get: () => undefined });")
+        # 注意：QA 阶段不做资源拦截——Alexa 面板依赖动态资源，拦截可能破坏流式回答
+
+        for i, (asin, probes) in enumerate(targets.items()):
+            print(f"[{i+1}/{len(targets)}] {asin} [自有·QA]")
+            qa_results[asin] = _qa_probe_asin(context, asin, probes)
+            if i < len(targets) - 1:
+                time.sleep(DELAY_BETWEEN_ASINS)
+        try:
+            context.close()
+        except Exception:
+            pass
+
+    n_ans = sum(1 for r in qa_results.values() for x in r["results"] if x["grade"] != "E")
+    n_all = sum(len(r["results"]) for r in qa_results.values())
+    print(f"\n✅ 问答质检完成：{n_ans}/{n_all} 个问题拿到回答")
+    return qa_results
+
+
+# ─── Phase 6: 洞察合成 ────────────────────────────────────────────────────────
+# 目标：①如何用 Alexa 优化本品 listing 让 AI 更愿意推荐 ②竞手动态/漏洞/可借鉴。
+# Python 侧做事实预处理（问题×listing文本交叉、竞手listing变更、widget问题增减），
+# Claude CLI 按固化的分析框架合成行动建议。信号不足时输出空，不编造。
+
+# 问题→答案关键词词典（判断 listing 文本是否包含某高频问题的答案素材）
+_COVERAGE_TERMS = [
+    (re.compile(r"carry|case|bag", re.I),          ["carry", "case", " bag", "pouch", "storage"]),
+    (re.compile(r"remote.*(recharge|batter)|(recharge|batter).*remote", re.I),
+                                                    ["rechargeable remote", "remote control works", "cr2032", "usb"]),
+    (re.compile(r"\bandroid\b", re.I),              ["android"]),
+    (re.compile(r"tablet|ipad", re.I),              ["tablet", "ipad"]),
+    (re.compile(r"tall|height|extend", re.I),       ["inch", "extends", " tall", "height"]),
+    (re.compile(r"stable|wobble|sturdy", re.I),     ["stab", "sturdy", "anti-slip", "wobble", "secure"]),
+    (re.compile(r"set ?up|install|assembl", re.I),  ["setup", "set up", "no tool", "plug", "easy to"]),
+    (re.compile(r"noise|microphone|mic\b", re.I),   ["noise", "mic", "wind"]),
+    (re.compile(r"light|brightness|led", re.I),     ["light", "brightness", "led", "dimmable"]),
+    (re.compile(r"video call|webcam|zoom", re.I),   ["video call", "webcam", "zoom", "facetime"]),
+    (re.compile(r"vertical|horizontal|portrait|landscape|rotat", re.I),
+                                                    ["portrait", "landscape", "vertical", "horizontal", "360"]),
+    (re.compile(r"weight|capacity|hold|heavy", re.I), [" lb", "weight", "capacity", "load", "oz"]),
+    (re.compile(r"water|weather", re.I),            ["waterproof", "weather", "splash"]),
+    (re.compile(r"iphone|phone.*compatib|compatib.*phone", re.I), ["iphone", "compatib", "fits phones"]),
+]
+
+
+def _question_coverage(question: str, listing_text: str):
+    """返回 True(文本含答案素材)/False(不含)/None(问题类别不认识，不判)。"""
+    txt = (listing_text or "").lower()
+    for q_pat, terms in _COVERAGE_TERMS:
+        if q_pat.search(question):
+            return any(t.lower() in txt for t in terms)
+    return None
+
+
+def _latest_file(d: Path, pattern: str):
+    files = sorted(d.glob(pattern)) if d.exists() else []
+    return files[-1] if files else None
+
+
+def _load_listing_snapshot() -> dict:
+    """任务#10 当天 02:00 的快照：asin → {brand,title,bullets,...}（02:35 跑正好接上）"""
+    f = _latest_file(LISTING_SNAPSHOT_DIR, "snapshot_*.json")
+    if not f:
+        return {}
+    try:
+        items = json.loads(f.read_text(encoding="utf-8")).get("items", [])
+    except Exception:
+        return {}
+    out = {}
+    for it in items:
+        bullets = it.get("bullet_points") or ""
+        if isinstance(bullets, list):
+            bullets = " ".join(str(b) for b in bullets)
+        out[it.get("asin")] = {
+            "brand": it.get("brand") or "",
+            "title": (it.get("title") or "")[:220],
+            "text": ((it.get("title") or "") + " " + str(bullets))[:2200],
+            "review_count": it.get("review_count"),
+            "bsr_rank": it.get("bsr_rank"),
+        }
+    return out
+
+
+def _load_listing_diff() -> list:
+    """任务#10 的周 diff，过滤出 listing 实质变更（title/五点/价格/主图/A+/变体）。"""
+    f = _latest_file(LISTING_DIFF_DIR, "weekly_diff_*.json")
+    if not f:
+        return []
+    try:
+        diff = json.loads(f.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+    MEANINGFUL = {"title", "bullet_points", "price", "main_image", "aplus_image_count",
+                  "aplus_main_image_count", "variation_asins", "brand"}
+    moves = []
+    for ch in diff.get("changes", []):
+        fields = [c for c in ch.get("changes", []) if c.get("field") in MEANINGFUL]
+        if fields:
+            moves.append({"asin": ch["asin"],
+                          "fields": [{k: v for k, v in c.items()
+                                      if k in {"field", "old", "new", "old_count", "new_count", "added", "removed"}}
+                                     for c in fields]})
+    return moves
+
+
+def build_insight_facts(current: dict, wow: dict, prev: dict | None) -> dict:
+    """组装给 Claude 的紧凑事实包（控制在 ~12KB 内）。"""
+    snapshot = _load_listing_snapshot()
+    roster = current["roster"]
+
+    # 1) 本品 QA + 本品 listing 覆盖
+    own_qa_facts = {}
+    for asin, item in current.get("own_qa", {}).items():
+        lt = item.get("listing_text", {}) or {}
+        own_text = " ".join([lt.get("title", ""), " ".join(lt.get("bullets", [])), lt.get("box", "")])
+        own_qa_facts[asin] = {
+            "listing_title": lt.get("title", "")[:200],
+            "qa": [{"q": r["question"], "grade": r["grade"], "polarity": r["polarity"],
+                    "expect": r.get("expect"), "flags": r["flags"],
+                    "answer": r["answer"][:350], "chips": r["chips"][:4]}
+                   for r in item["results"]],
+        }
+        # 本品对竞品高频问题的文本覆盖
+        cov = {}
+        for q, asins in current["comp_analysis"].get("high_freq", []):
+            c = _question_coverage(q, own_text)
+            if c is not None:
+                cov[q] = c
+        own_qa_facts[asin]["own_text_covers_hot_questions"] = cov
+
+    # 2) 竞手侧：重点竞品（进关键词Top5自然位的 + 评论数最高的固定竞品）
+    key_asins = [a for a, m in roster.items() if m.get("keyword_ranks") and not m.get("is_own")]
+    by_reviews = sorted((a for a, m in roster.items() if m.get("is_fixed") and a in snapshot),
+                        key=lambda a: -(int(snapshot[a].get("review_count") or 0)))
+    focus = list(dict.fromkeys(key_asins + by_reviews[:6]))[:12]
+
+    hot_qs = [q for q, _ in current["comp_analysis"].get("high_freq", [])]
+    for kw in current["keyword_analysis"]:
+        for q, _ in kw["analysis"].get("high_freq", []):
+            if q not in hot_qs:
+                hot_qs.append(q)
+    hot_qs = hot_qs[:10]
+
+    comp_facts = []
+    for a in focus:
+        s = snapshot.get(a, {})
+        cov = {}
+        for q in hot_qs:
+            c = _question_coverage(q, s.get("text", ""))
+            if c is not None:
+                cov[q] = c
+        comp_facts.append({
+            "asin": a, "brand": s.get("brand", "?"), "title": s.get("title", "")[:120],
+            "keyword_ranks": roster.get(a, {}).get("keyword_ranks", {}),
+            "widget_questions": current["all_questions"].get(a, [])[:6],
+            "text_covers_hot_questions": cov,
+        })
+
+    # 3) 竞手动态：listing 变更 + widget 问题增减
+    listing_moves = [mv for mv in _load_listing_diff() if mv["asin"] in roster][:12]
+    q_moves = []
+    if prev:
+        prev_q = prev.get("competitor_questions", {})
+        for a, qs in current["all_questions"].items():
+            if not roster.get(a, {}).get("is_fixed"):
+                continue
+            pq = set(prev_q.get(a, []))
+            if not pq:
+                continue
+            added, removed = sorted(set(qs) - pq), sorted(pq - set(qs))
+            if added or removed:
+                q_moves.append({"asin": a, "brand": snapshot.get(a, {}).get("brand", "?"),
+                                "questions_added": added[:4], "questions_removed": removed[:4]})
+
+    return {
+        "run_date": current["run_date"],
+        "own_products": own_qa_facts,
+        "own_gaps": {kw["keyword"]: {oa: g[:5] for oa, g in kw["own_gap"].items()}
+                     for kw in current["keyword_analysis"] if kw["own_gap"]},
+        "competitor_high_freq": [(q, len(asins)) for q, asins in
+                                 current["comp_analysis"].get("high_freq", [])],
+        "competitors": comp_facts,
+        "competitor_listing_changes_this_week": listing_moves,
+        "competitor_widget_question_changes": q_moves[:10],
+        "qa_grade_changes_vs_last_week": wow.get("qa_wow", []) if wow else [],
+    }
+
+
+_INSIGHT_PROMPT = """你是亚马逊 Alexa（站内AI购物助手，原Rufus）优化顾问。基于下方 JSON 事实包，为 Vlogara 品牌（自有 ASIN 见 own_products）产出本周洞察。服务两个目标：
+①让 Alexa 更愿意推荐本品：Alexa 回答质量由 listing 文本+后台属性字段决定，回答得越明确越有利转化与推荐；
+②竞手情报：竞手 listing 动态解读、竞手漏洞（=我的攻击点）、竞手做得好的（=可借鉴）。
+
+分析原则（必须遵守）：
+- widget 问题是 Alexa 引导买家问的"考试大纲"；本品 QA 分级 D=Alexa 把事实答错（优先查后台属性字段），C=listing 缺信息（补文案），B=表述含糊（改写更明确），A=良好；
+- 区分「真实功能缺失」和「listing 表述缺失」：功能缺失改文案没用，给话术对冲或产品迭代建议；表述缺失给具体落点（标题/五点/A+/属性字段/QA）；
+- 本品被 Alexa 否定回答且出现 Show xxx 引流 chip = 买家被一键带去竞品，量化损失点；
+- 竞手高频被问但其 listing 文本未覆盖（text_covers_hot_questions 为 false）= 竞手漏洞，我方若覆盖了就是广告语/对比图/A+ 的攻击素材；竞手覆盖好的写法 = 可借鉴；
+- 竞手 listing 变更（标题/五点/主图/价格/A+/变体）+ widget 问题增减 = 竞手运营动作，解读意图；
+- 事实包里没有的信息不要编；信号不足就少写或写空数组，宁缺毋滥。
+
+只输出 JSON（不要 markdown 代码块），结构：
+{"summary_line": "一句话本周结论(≤40字)",
+ "actions": [{"priority": "P0|P1|P2", "signal": "触发信号(引用具体数据)", "insight": "为什么重要", "action": "具体动作", "target": "标题|五点|A+|后台属性|QA|广告|产品决策"}],
+ "competitor_moves": [{"brand": "", "asin": "", "move": "变了什么", "read": "意图解读+对我影响"}],
+ "attack_points": [{"question": "", "weak_competitors": ["brand"], "my_coverage": true, "how_to_use": "怎么打"}],
+ "learn_from": [{"brand": "", "what": "做得好的点", "apply": "怎么借鉴"}]}
+actions 最多5条按优先级排序；competitor_moves/attack_points/learn_from 各最多4条。competitor_moves 的 brand 字段不能为空——事实包里查不到品牌名就填 ASIN。所有文本字段写完整句子，不要写半句。
+
+事实包：
+"""
+
+
+def run_insight_phase(facts: dict) -> dict:
+    """调 Claude CLI 合成洞察。失败/超时返回空 dict，不阻塞报告生成。"""
+    if not INSIGHT_ENABLED:
+        print("\n↷ Phase 6 已通过 ALEXA_INSIGHT_DISABLED 跳过")
+        return {}
+    if not Path(CLAUDE_BIN).exists():
+        print(f"\n↷ Phase 6 跳过：找不到 claude CLI（{CLAUDE_BIN}）")
+        return {}
+    print("\n═══ Phase 6: 洞察合成（Claude CLI）══════════════════════")
+    prompt = _INSIGHT_PROMPT + json.dumps(facts, ensure_ascii=False)
+    try:
+        result = subprocess.run([CLAUDE_BIN, "-p", prompt],
+                                capture_output=True, text=True, timeout=420)
+        raw = result.stdout.strip()
+        if result.returncode != 0:
+            print(f"  ⚠️ claude 退出码 {result.returncode}: {result.stderr[:200]}")
+            return {}
+        # 容错：剥掉可能的 ```json 围栏，取第一个 { 到最后一个 }
+        m = re.search(r"\{.*\}", raw, re.S)
+        insights = json.loads(m.group(0)) if m else {}
+        n_act = len(insights.get("actions", []))
+        print(f"✅ 洞察合成完成：{n_act} 条行动建议，"
+              f"{len(insights.get('competitor_moves', []))} 条竞手动态，"
+              f"{len(insights.get('attack_points', []))} 个攻击点")
+        return insights
+    except subprocess.TimeoutExpired:
+        print("  ⚠️ claude 调用超时（420s），跳过洞察")
+        return {}
+    except Exception as e:
+        print(f"  ⚠️ 洞察合成失败: {e}")
+        return {}
+
+
+def main_login_setup():
+    """打开 QA 专用浏览器窗口让用户人工登录 Amazon（脚本不接触任何密码）。
+    登录状态存进持久化 profile，之后 Phase 5 每周运行自动保鲜。"""
+    print("═══ QA 浏览器 profile 登录设置 ══════════════════════════")
+    print("即将打开浏览器窗口，请在窗口里手动登录 Amazon（建议用 QA 专用买家账号）。")
+    print("登录完成后脚本会自动检测并验证 Alexa 面板是否可用。\n")
+    QA_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+    with sync_playwright() as p:
+        context = p.chromium.launch_persistent_context(
+            str(QA_PROFILE_DIR), headless=False,
+            args=["--no-sandbox", "--disable-blink-features=AutomationControlled",
+                  "--window-size=1440,900"],
+            viewport={"width": 1440, "height": 900},
+            locale="en-US", timezone_id="America/New_York",
+        )
+        page = context.pages[0] if context.pages else context.new_page()
+        page.goto("https://www.amazon.com/", timeout=60000, wait_until="domcontentloaded")
+        print("⏳ 等待登录（最长 5 分钟）……请在弹出的窗口操作")
+        signed_in = False
+        for _ in range(100):  # 100 × 3s = 5min
+            try:
+                txt = page.evaluate(
+                    "() => (document.querySelector('#nav-link-accountList-nav-line-1')||{textContent:''}).textContent")
+                if txt and "sign in" not in txt.lower():
+                    signed_in = True
+                    break
+            except Exception:
+                pass
+            time.sleep(3)
+        if not signed_in:
+            print("✗ 5 分钟内未检测到登录，退出。可重新运行 --login-setup")
+            context.close()
+            return
+        print(f"✅ 已登录（{txt.strip()}）。验证 Alexa 面板……")
+        page.goto("https://www.amazon.com/dp/B0GY7Y6C63", timeout=60000, wait_until="domcontentloaded")
+        page.wait_for_timeout(5000)
+        try:
+            page.click("#nav-rufus-disco", timeout=8000)
+            page.wait_for_selector("#rufus-text-area", timeout=15000)
+            print("✅ Alexa 面板可用，Phase 5 就绪。窗口即将关闭。")
+        except Exception:
+            print("⚠️ Alexa 面板未能打开——登录可能成功但面板仍受限，跑一次 --qa-only 再确认")
+        page.wait_for_timeout(2000)
+        context.close()
+
+
 # ─── Step 4: 三层分析 ─────────────────────────────────────────────────────────
 
 def _analyze_question_set(asin_questions: dict) -> dict:
@@ -579,6 +1135,17 @@ def compute_wow(current: dict, prev: dict) -> dict:
             "kw_hf_dropped":  sorted(prev_kw_hf - curr_kw_hf),
         })
 
+    # 问答质检 WoW：分级变化即报警信号
+    qa_wow = []
+    prev_qa = prev.get("own_qa", {})
+    for asin, item in current.get("own_qa", {}).items():
+        prev_map = {r["question"]: r for r in prev_qa.get(asin, [])}
+        for r in item["results"]:
+            pr = prev_map.get(r["question"])
+            if pr and pr.get("grade") != r["grade"]:
+                qa_wow.append({"asin": asin, "question": r["question"],
+                               "prev_grade": pr.get("grade"), "curr_grade": r["grade"]})
+
     return {
         "prev_date":      prev.get("run_date", "上周"),
         "comp_hf_new":    sorted(curr_hf - prev_hf),
@@ -586,6 +1153,7 @@ def compute_wow(current: dict, prev: dict) -> dict:
         "brand_new_q":    sorted(curr_all - prev_all),
         "disappeared_q":  sorted(prev_all - curr_all),
         "kw_wow":         kw_wow,
+        "qa_wow":         qa_wow,
     }
 
 
@@ -608,6 +1176,12 @@ def save_archive(current: dict):
         "competitor_questions": {a: qs for a, qs in current["all_questions"].items()
                                  if current["roster"].get(a, {}).get("is_fixed")},
         "own_questions":        current["own_q"],
+        "own_qa": {
+            asin: [{"question": r["question"], "grade": r["grade"],
+                    "polarity": r["polarity"], "flags": r["flags"]}
+                   for r in item["results"]]
+            for asin, item in current.get("own_qa", {}).items()
+        },
     }
     ARCHIVE_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"✅ 存档已保存: {ARCHIVE_FILE}")
@@ -617,6 +1191,23 @@ def save_archive(current: dict):
 
 def _esc(s) -> str:
     return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+# ── Gap × 质检交叉：gap 问题若质检已 A 级明确作答，说明仅挂件未展示，不是内容缺失 ──
+
+def _norm_q(s: str) -> str:
+    return "".join(c for c in s.lower() if c.isalnum() or c == " ").strip()
+
+def _build_qa_lookup(current: dict) -> dict:
+    return {asin: {_norm_q(r["question"]): r["grade"] for r in item["results"]}
+            for asin, item in current.get("own_qa", {}).items()}
+
+def _gap_grade(qa_lookup: dict, asin: str, q: str):
+    nq = _norm_q(q)
+    for pq, g in qa_lookup.get(asin, {}).items():
+        if nq == pq or nq in pq or pq in nq:
+            return g
+    return None
 
 def generate_html(current: dict, wow: dict) -> Path:
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
@@ -657,6 +1248,8 @@ tr:last-child td { border-bottom:none; }
 .asin-hd { background:#f0f2f8; padding:3px 8px; border-radius:4px; font-size:12px; font-weight:600; display:inline-block; margin:6px 0 4px; }
 .qi { font-size:12px; padding:3px 0 3px 10px; border-left:2px solid #e0e0e0; margin:2px 0; }
 .gap-box { background:#fff3e0; border-left:3px solid #ff9800; padding:8px 12px; border-radius:4px; margin-top:8px; font-size:12px; }
+.gap-ok { background:#f1f8e9; border-left:3px solid #8bc34a; padding:8px 12px; border-radius:4px; margin-top:8px; font-size:12px; }
+.legend { font-size:11px; color:#999; margin:-8px 0 12px; }
 details summary { cursor:pointer; font-size:12px; font-weight:600; color:#3949ab; padding:6px 0; }
 """
     parts = [f"""<!DOCTYPE html><html lang="zh"><head>
@@ -671,8 +1264,55 @@ details summary { cursor:pointer; font-size:12px; font-weight:600; color:#3949ab
 </div>
 <div class="wrap">"""]
 
+    # ── 洞察层（Phase 6）：行动建议 + 竞手动态置顶，决策先行 ──
+    ins = current.get("insights", {}) or {}
+    if ins.get("summary_line"):
+        parts.append(f'<div class="sec" style="border-left:4px solid #1a237e">'
+                     f'<div style="font-size:14px;font-weight:700;color:#1a237e">📌 {_esc(ins["summary_line"])}</div></div>')
+    if ins.get("actions"):
+        PRI_CLS = {"P0": "tag-u", "P1": "tag-h", "P2": "tag-m"}
+        parts.append('<div class="sec"><h2>🎯 本周行动建议</h2>')
+        parts.append('<table><tr><th style="width:6%">优先级</th><th style="width:22%">触发信号</th>'
+                     '<th style="width:26%">解读</th><th>建议动作</th><th style="width:10%">落点</th></tr>')
+        for a in ins["actions"]:
+            cls = PRI_CLS.get(a.get("priority", "P2"), "tag-m")
+            parts.append(f'<tr><td><span class="{cls}">{_esc(a.get("priority",""))}</span></td>'
+                         f'<td>{_esc(a.get("signal",""))}</td><td>{_esc(a.get("insight",""))}</td>'
+                         f'<td>{_esc(a.get("action",""))}</td><td>{_esc(a.get("target",""))}</td></tr>')
+        parts.append('</table></div>')
+    if ins.get("competitor_moves") or ins.get("attack_points") or ins.get("learn_from"):
+        parts.append('<div class="sec"><h2>🕵️ 竞手动态与机会</h2>')
+        if ins.get("competitor_moves"):
+            parts.append('<h3>本周竞手动作</h3><table><tr><th style="width:18%">品牌/ASIN</th>'
+                         '<th style="width:34%">变更</th><th>解读</th></tr>')
+            for mv in ins["competitor_moves"]:
+                who = mv.get("brand") or mv.get("asin") or "?"
+                parts.append(f'<tr><td>{_esc(who)}<br><span style="color:#999;font-size:11px">'
+                             f'{_esc(mv.get("asin",""))}</span></td>'
+                             f'<td>{_esc(mv.get("move",""))}</td><td>{_esc(mv.get("read",""))}</td></tr>')
+            parts.append('</table>')
+        if ins.get("attack_points"):
+            parts.append('<h3>攻击点（竞手漏洞 × 我方覆盖）</h3><table><tr><th style="width:30%">高频问题</th>'
+                         '<th style="width:22%">未覆盖的竞手</th><th>怎么打</th></tr>')
+            for ap in ins["attack_points"]:
+                parts.append(f'<tr><td>{_esc(ap.get("question",""))}</td>'
+                             f'<td>{_esc(" / ".join(ap.get("weak_competitors", [])))}</td>'
+                             f'<td>{_esc(ap.get("how_to_use",""))}</td></tr>')
+            parts.append('</table>')
+        if ins.get("learn_from"):
+            parts.append('<h3>可借鉴</h3><table><tr><th style="width:18%">品牌</th>'
+                         '<th style="width:40%">做得好的点</th><th>怎么用</th></tr>')
+            for lf in ins["learn_from"]:
+                parts.append(f'<tr><td>{_esc(lf.get("brand",""))}</td>'
+                             f'<td>{_esc(lf.get("what",""))}</td><td>{_esc(lf.get("apply",""))}</td></tr>')
+            parts.append('</table>')
+        parts.append('</div>')
+
     # ── 自有 ASIN ──
+    qa_lookup = _build_qa_lookup(current)
     parts.append('<div class="sec"><h2>🏠 自有 ASIN 状态</h2>')
+    parts.append('<div class="legend">「未命中」= 该问题在竞品挂件高频出现、但本品挂件未展示；'
+                 '不代表 Alexa 答不出（对照下方质检结果，✓质检A 表示能明确作答，仅缺曝光位）</div>')
     for own_asin, qs in own.items():
         status = own_statuses.get(own_asin, "unknown")
         parts.append(f'<span class="asin-hd">{_esc(own_asin)}</span> '
@@ -690,12 +1330,64 @@ details summary { cursor:pointer; font-size:12px; font-weight:600; color:#3949ab
         else:
             parts.append('<div style="font-size:12px;color:#999;margin:4px 0">暂无 Alexa 问题（新品期正常）</div>')
         # Gap（来自关键词层）
-        for kw_item in ka:
-            gap = kw_item["own_gap"].get(own_asin, [])
-            if gap:
-                parts.append(f'<div class="gap-box">⚡ <b>「{_esc(kw_item["keyword"])}」Top5 高频但自有未命中：</b><br>'
-                              + " / ".join(_esc(g) for g in gap) + '</div>')
+        if not qs:
+            # 新品期挂件未生成：所有高频问题都会被机械列为 gap，属结构性噪音，降级为一行灰字
+            gap_kw_cnt = sum(1 for kw_item in ka if kw_item["own_gap"].get(own_asin))
+            if gap_kw_cnt:
+                parts.append(f'<div style="font-size:12px;color:#999;margin:4px 0">'
+                             f'新品期挂件未生成，{gap_kw_cnt} 个关键词的 gap 暂不计（Top5 高频问题见关键词板块）</div>')
+        else:
+            for kw_item in ka:
+                gap = kw_item["own_gap"].get(own_asin, [])
+                if not gap:
+                    continue
+                annotated, all_ok = [], True
+                for g in gap:
+                    grade = _gap_grade(qa_lookup, own_asin, g)
+                    if grade == "A":
+                        annotated.append(f'{_esc(g)} <span class="wn">✓质检A</span>')
+                    elif grade in ("C", "D"):
+                        annotated.append(f'{_esc(g)} <span class="wd">✗质检{grade}，需补内容</span>')
+                        all_ok = False
+                    else:
+                        annotated.append(_esc(g))
+                        all_ok = False
+                box_cls = "gap-ok" if all_ok else "gap-box"
+                icon = "✓" if all_ok else "⚡"
+                parts.append(f'<div class="{box_cls}">{icon} <b>「{_esc(kw_item["keyword"])}」Top5 高频但自有未命中：</b><br>'
+                              + " / ".join(annotated) + '</div>')
     parts.append('</div>')
+
+    # ── 本品问答质检（Phase 5）──
+    own_qa = current.get("own_qa", {})
+    if own_qa:
+        GRADE_LABEL = {"A": ("A 明确", "tag-m"), "B": ("B 含糊", "tag-h"),
+                       "C": ("C 答不出", "tag-u"), "D": ("D 答错", "tag-u"), "E": ("E 未获取", "tag-u")}
+        parts.append('<div class="sec"><h2>🧪 本品 Alexa 问答质检</h2>')
+        parts.append('<div class="legend">分级：A明确 / B含糊 / C答不出 / D答错 / E未获取（C→A 为改善）；'
+                     '标记列为脚本自动风险检测（答错·引用差评·竞品引流chip·属性缺失），— 为正常无风险</div>')
+        qa_wow_list = wow.get("qa_wow", []) if wow else []
+        if qa_wow_list:
+            changes = "<br>".join(
+                f'<b>{_esc(x["asin"])}</b> 「{_esc(x["question"])}」 {_esc(x["prev_grade"])} → <b>{_esc(x["curr_grade"])}</b>'
+                for x in qa_wow_list)
+            parts.append(f'<div class="wow-box">⚠️ <b>分级变化（对比上周）：</b><br>{changes}</div>')
+        for own_asin, item in own_qa.items():
+            parts.append(f'<span class="asin-hd">{_esc(own_asin)}</span> '
+                         f'<span style="font-size:12px;color:#666">状态: {_esc(item["status"])}</span>')
+            if item["results"]:
+                parts.append('<table><tr><th style="width:26%">探针问题</th><th style="width:8%">分级</th>'
+                             '<th>Alexa 回答</th><th style="width:22%">标记</th></tr>')
+                for r in item["results"]:
+                    label, cls = GRADE_LABEL.get(r["grade"], (r["grade"], "tag-h"))
+                    flag_str = "<br>".join(_esc(f) for f in r["flags"]) if r["flags"] else "—"
+                    parts.append(f'<tr><td>{_esc(r["question"])}</td>'
+                                 f'<td><span class="{cls}">{_esc(label)}</span></td>'
+                                 f'<td>{_esc(r["answer"][:300])}</td><td>{flag_str}</td></tr>')
+                parts.append('</table>')
+            else:
+                parts.append('<div style="font-size:12px;color:#999;margin:4px 0">本次未获取到问答结果</div>')
+        parts.append('</div>')
 
     # ── 关键词层 ──
     parts.append('<div class="sec"><h2>🔑 关键词视角 Alexa 问题</h2>')
@@ -720,10 +1412,11 @@ details summary { cursor:pointer; font-size:12px; font-weight:600; color:#3949ab
                        f" | 月搜：<b>{kw_item['monthly_search']:,}</b>"
                        f" | CPC：<b>${kw_item['cpc']:.2f}</b>")
 
+        comp_str = (f' | 竞品数：{_esc(kw_item["competition"])}'
+                    if kw_item["competition"] and kw_item["competition"] not in ("-", "None") else "")
         parts.append(f'<div class="kw-card">'
                      f'<div class="kw-title">🔑 {_esc(kw_item["keyword"])}</div>'
-                     f'<div class="kw-meta">{meta_str}'
-                     f' | 竞品数：{_esc(kw_item["competition"])}'
+                     f'<div class="kw-meta">{meta_str}{comp_str}'
                      f' | Top5成功抓取：{kw_item["top5_ok_count"]}/{len(kw_item["top5"])}</div>')
 
         hf = kw_item["analysis"].get("high_freq", [])
@@ -885,6 +1578,22 @@ def save_excel_report(current: dict) -> Path:
     ws4.column_dimensions["A"].width = 15
     ws4.column_dimensions["C"].width = 65
 
+    # Sheet5: 本品问答质检（Phase 5）
+    own_qa = current.get("own_qa", {})
+    if own_qa:
+        ws5 = wb.create_sheet("本品问答质检")
+        ws5.append(["自有ASIN", "探针问题", "预期极性", "分级", "回答极性", "标记", "Alexa回答", "建议chips"])
+        _style(ws5)
+        for asin, item in own_qa.items():
+            for r in item["results"]:
+                ws5.append([asin, r["question"], r.get("expect") or "", r["grade"],
+                            r.get("polarity") or "", "；".join(r["flags"]),
+                            r["answer"], " | ".join(r["chips"])])
+        ws5.column_dimensions["A"].width = 15
+        ws5.column_dimensions["B"].width = 40
+        ws5.column_dimensions["F"].width = 40
+        ws5.column_dimensions["G"].width = 80
+
     wb.save(str(OUTPUT_EXCEL))
     print(f"✅ Excel 已保存: {OUTPUT_EXCEL}")
     return OUTPUT_EXCEL
@@ -904,6 +1613,31 @@ def send_feishu(current: dict, wow: dict, html_url: str):
         "text": {"tag": "lark_md",
                  "content": f"**生成时间：** {RUN_DATETIME}　**抓取成功：** {ok_count}/{total_scraped}"}
     }, {"tag": "hr"}]
+
+    # ── 模块零：洞察置顶（决策先行）───────────────────────────
+    ins = current.get("insights", {}) or {}
+    if ins.get("summary_line") or ins.get("actions"):
+        top_lines = []
+        if ins.get("summary_line"):
+            top_lines.append(f"**📌 {ins['summary_line']}**")
+        for a in ins.get("actions", [])[:3]:
+            top_lines.append(f"**{a.get('priority','')}**［{a.get('target','')}］{a.get('action','')}")
+        n_more = len(ins.get("actions", [])) - 3
+        if n_more > 0:
+            top_lines.append(f"_…另 {n_more} 条行动建议见 HTML_")
+        elements.append({"tag": "div", "text": {"tag": "lark_md",
+                         "content": "**🎯 本周行动建议**\n" + "\n".join(top_lines)}})
+        elements.append({"tag": "hr"})
+    if ins.get("competitor_moves") or ins.get("attack_points"):
+        cm_lines = ["**🕵️ 竞手动态与机会**"]
+        for mv in ins.get("competitor_moves", [])[:3]:
+            who = mv.get("brand") or mv.get("asin") or "?"
+            cm_lines.append(f"- **{who}**：{mv.get('move','')}\n  ↳ {mv.get('read','')}")
+        for ap in ins.get("attack_points", [])[:2]:
+            cm_lines.append(f"⚔️ 攻击点「{ap.get('question','')}」竞手 "
+                            f"{'/'.join(ap.get('weak_competitors', [])[:3])} 未覆盖\n  ↳ {ap.get('how_to_use','')}")
+        elements.append({"tag": "div", "text": {"tag": "lark_md", "content": "\n".join(cm_lines)}})
+        elements.append({"tag": "hr"})
 
     # ── 模块一：竞品 ──────────────────────────────────────────
     elements.append({"tag": "div", "text": {"tag": "lark_md",
@@ -937,30 +1671,89 @@ def send_feishu(current: dict, wow: dict, html_url: str):
 
     # ── 模块二：本品 ──────────────────────────────────────────
     elements.append({"tag": "div", "text": {"tag": "lark_md",
-                     "content": "**🏠 【本品】Alexa 问题（B0GY7Y6C63）**"}})
+                     "content": "**🏠 【本品】Alexa 问题**"}})
     own_lines = []
-    for own_asin, qs in own.items():
+    for own_asin, qs in sorted(own.items()):
         status = own_statuses.get(own_asin, "?")
         ranks = roster.get(own_asin, {}).get("keyword_ranks", {})
         rank_str = " | ".join(f"{k[:20]}→#{v}" for k, v in ranks.items()) if ranks else "未进入Top5自然位"
-        own_lines.append(f"抓取状态：{status}　自然位：{rank_str}")
+        own_lines.append(f"**{own_asin}**　抓取状态：{status}　自然位：{rank_str}")
         if qs:
             own_lines.append(f"当周被问（{len(qs)} 条）：")
             for q in qs:
                 own_lines.append(f"- {q}")
         else:
             own_lines.append("当周暂无 Alexa 问题（新品期正常）")
-        gaps = []
-        for kw_item in ka:
-            gap = kw_item["own_gap"].get(own_asin, [])
-            if gap:
-                gaps.append(f"「{kw_item['keyword']}」缺失：" + " / ".join(gap[:3]))
-        if gaps:
-            own_lines.append("⚡ Gap（竞品高频本品未覆盖）：")
-            own_lines.extend(gaps)
+        if not qs:
+            # 新品期挂件未生成：gap 全是结构性噪音，不逐条列
+            gap_kw_cnt = sum(1 for kw_item in ka if kw_item["own_gap"].get(own_asin))
+            if gap_kw_cnt:
+                own_lines.append(f"Gap：新品期挂件未生成，{gap_kw_cnt} 个关键词 gap 暂不计")
+        else:
+            qa_lookup = _build_qa_lookup(current)
+            gaps_warn, gaps_ok = [], []
+            for kw_item in ka:
+                gap = kw_item["own_gap"].get(own_asin, [])
+                if not gap:
+                    continue
+                annotated, has_bad = [], False
+                for g in gap[:3]:
+                    grade = _gap_grade(qa_lookup, own_asin, g)
+                    if grade == "A":
+                        annotated.append(f"{g} ✓A")
+                    elif grade in ("C", "D"):
+                        annotated.append(f"{g} ✗{grade}")
+                        has_bad = True
+                    else:
+                        annotated.append(g)
+                        has_bad = True
+                line = f"「{kw_item['keyword']}」" + " / ".join(annotated)
+                (gaps_warn if has_bad else gaps_ok).append(line)
+            if gaps_warn:
+                own_lines.append("⚡ Gap 需补内容（✗=质检答不出，无标=未探针）：")
+                own_lines.extend(gaps_warn)
+            if gaps_ok:
+                own_lines.append("✅ Gap 已覆盖（质检A，仅挂件未展示）：")
+                own_lines.extend(gaps_ok)
     if not own_lines:
         own_lines.append("未配置自有 ASIN")
     elements.append({"tag": "div", "text": {"tag": "lark_md", "content": "\n".join(own_lines)}})
+
+    # ── 模块三：本品问答质检（Phase 5）─────────────────────────
+    # 全绿时压缩为一行；有 B/C/D/E 或分级变化才展开明细
+    own_qa = current.get("own_qa", {})
+    if own_qa:
+        elements.append({"tag": "hr"})
+        GRADE_EMOJI = {"A": "🟢A", "B": "🟡B", "C": "🟠C", "D": "🔴D", "E": "⚪E"}
+        qa_wow_list = wow.get("qa_wow", []) if wow else []
+        all_results = [(a, r) for a, item in sorted(own_qa.items()) for r in item["results"]]
+        bad = [(a, r) for a, r in all_results
+               if r["grade"] != "A" or any(f.startswith(("⚠️", "🔀")) or "相反" in f for f in r["flags"])]
+        qa_lines = ["**🧪 【质检】Alexa 回答本品问题的能力**"]
+        if not bad and not qa_wow_list:
+            qa_lines.append(f"🟢 全部通过：{len(all_results)} 个探针问题全 A（明确作答），无引流/差评/答错标记")
+        else:
+            n_ok = len(all_results) - len(bad)
+            if bad:
+                qa_lines.append(f"🟢 {n_ok} 项通过；需要关注 {len(bad)} 项：")
+            else:
+                qa_lines.append(f"🟢 全部 {n_ok} 项通过；本周分级有变化：")
+            for a, r in bad:
+                mark = GRADE_EMOJI.get(r["grade"], r["grade"])
+                alert = "　" + "；".join(f for f in r["flags"] if f.startswith(("⚠️", "🔀")) or "相反" in f) \
+                        if r["flags"] else ""
+                qa_lines.append(f"{mark} [{a}] {r['question']}{alert}")
+            for x in qa_wow_list:
+                qa_lines.append(f"⚠️ 分级变化 {x['asin']}「{x['question'][:30]}」{x['prev_grade']}→{x['curr_grade']}")
+            qa_lines.append("_A明确 B含糊 C答不出 D答错 E未获取；回答原文见 HTML_")
+        elements.append({"tag": "div", "text": {"tag": "lark_md", "content": "\n".join(qa_lines)}})
+
+    if html_url:
+        elements.append({"tag": "action", "actions": [{
+            "tag": "button",
+            "text": {"tag": "plain_text", "content": "📄 查看完整 HTML 报告"},
+            "type": "primary",
+            "url": html_url}]})
     elements.append({"tag": "note", "elements": [{"tag": "plain_text",
                      "content": f"Alexa 综合情报 | {RUN_TIMESTAMP} | 关键词Top{KEYWORD_TOP_N}+固定竞品+自有"}]})
 
@@ -1006,12 +1799,19 @@ def main():
     # Phase 4: 三层分析
     current = run_analysis_phase(keyword_data, roster, asin_questions, run_statuses)
 
-    # WoW
-    save_archive(current)
+    # Phase 5: 本品 Alexa 问答质检
+    own_set = {a for a, m in roster.items() if m["is_own"]}
+    current["own_qa"] = run_alexa_qa_phase(own_set)
+
+    # WoW：必须先读上周存档再覆盖，否则永远在和本次自比
     prev = load_prev_archive()
     wow  = compute_wow(current, prev) if prev else {}
+    save_archive(current)
 
-    # Phase 5: 输出
+    # Phase 6: 洞察合成（两个目标：本品 Alexa 推荐优化 / 竞手动态与机会）
+    current["insights"] = run_insight_phase(build_insight_facts(current, wow, prev))
+
+    # Phase 7: 输出
     html_path = generate_html(current, wow)
     html_url  = push_to_github_pages(html_path)
     save_excel_report(current)
@@ -1020,5 +1820,28 @@ def main():
     print(f"\n✅ 全部完成 — {RUN_DATETIME}")
 
 
+def main_qa_only():
+    """只跑 Phase 5 问答质检（调试/手动验证用），不发飞书、不写存档。"""
+    print(f"═══ Phase 5 单独测试 {RUN_DATETIME} ═══════════════════════════")
+    own_asins = set(_load_asin_file(OWN_ASINS_FILE))
+    qa = run_alexa_qa_phase(own_asins)
+    out = RAW_DIR / f"alexa_qa_test_{RUN_TIMESTAMP}.json"
+    RAW_DIR.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(qa, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"\n✅ 测试结果已保存: {out}")
+    for asin, item in qa.items():
+        print(f"\n{asin} [{item['status']}]")
+        for r in item["results"]:
+            print(f"  [{r['grade']}] {r['question']}")
+            print(f"      答: {r['answer'][:150]}")
+            if r["flags"]:
+                print(f"      标记: {'；'.join(r['flags'])}")
+
+
 if __name__ == "__main__":
-    main()
+    if "--login-setup" in sys.argv:
+        main_login_setup()
+    elif "--qa-only" in sys.argv:
+        main_qa_only()
+    else:
+        main()

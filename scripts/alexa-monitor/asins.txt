@@ -41,3 +41,18 @@ B0GTRG9TDN
 B0GG865SHL
 B0CV64GBVS
 B0FSDBZ34X
+
+# === tracking 子段补充 (TRACK) — 2026-06-24 新增 ===
+# auto face tracking tripod 子段：功能代表 + 早期哨兵（父ASIN）
+# B0F1SDJC4Z Zarcaco 手势控制+no app | B0H1VXDMDP jiangler tracking+手势(Photo&Video Kits)
+# B0GV3BQS8W Ocwqp 早期哨兵 2026-04 ring light | B0FQ9ZS2SM Euoto 早期哨兵 2025-09
+B0F1SDJC4Z
+B0H1VXDMDP
+B0GV3BQS8W
+B0FQ9ZS2SM
+
+# === gimbal 替代品基准 (BENCH) — 2026-06-24 新增 ===
+# 仅监控需求外流，不计入竞品对抗
+# B07FSS4R16 DJI Osmo Mobile 7 ($59 走量款) | B0GXW2BG8C DJI Osmo Mobile 8 ($115 旗舰)
+B07FSS4R16
+B0GXW2BG8C

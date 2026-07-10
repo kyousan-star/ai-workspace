@@ -7,6 +7,8 @@ import json
 import math
 import os
 import re
+import shutil
+import subprocess
 import time
 import unicodedata
 from pathlib import Path
@@ -67,6 +69,10 @@ RUN_DATETIME = datetime.now().strftime("%Y-%m-%d %H:%M")
 
 OUTPUT_EXCEL = RAW_DIR / f"rufus_questions_{RUN_TIMESTAMP}.xlsx"
 OUTPUT_MD = REPORT_DIR / f"rufus_analysis_report_{RUN_TIMESTAMP}.md"
+OUTPUT_HTML = REPORT_DIR / f"rufus_analysis_report_{RUN_TIMESTAMP}.html"
+
+GITHUB_REPO = Path("/Users/lihuan/Documents/学习提升/AI/claude/桌面 claude code/Scheduled/美日金融市场daily brief")
+GITHUB_PAGES_BASE = "https://kyousan-star.github.io/-daily-brief"
 
 
 # ─── 工具函数 ──────────────────────────────────────────────────────────────────
@@ -877,6 +883,226 @@ def save_markdown_report(asin_questions: dict, analysis: dict, failed_asins: lis
     return OUTPUT_MD
 
 
+# ─── HTML 报告生成 ─────────────────────────────────────────────────────────────
+
+def generate_html_report(asin_questions: dict, analysis: dict, failed_asins: list,
+                          wow_data: dict = None, run_statuses: dict = None) -> Path:
+    """生成可在浏览器直接打开的 HTML 分析报告（供同事共享）。"""
+    REPORT_DIR.mkdir(parents=True, exist_ok=True)
+
+    total = analysis["total_asins"]
+    threshold = analysis["threshold"]
+    success_count = sum(1 for qs in asin_questions.values() if qs)
+    q2a = analysis["question_to_asins"]
+
+    def esc(s):
+        return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    CSS = """
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f7fa; color: #2c3e50; }
+.header { background: linear-gradient(135deg, #1a237e, #283593); color: white; padding: 24px 32px; }
+.header h1 { font-size: 20px; font-weight: 600; margin-bottom: 6px; }
+.header .meta { font-size: 13px; opacity: 0.85; }
+.container { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+.cards { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+.card { background: white; border-radius: 10px; padding: 16px 20px; flex: 1; min-width: 140px;
+        box-shadow: 0 1px 4px rgba(0,0,0,.08); border-top: 3px solid #3949ab; }
+.card .num { font-size: 28px; font-weight: 700; color: #3949ab; }
+.card .lbl { font-size: 12px; color: #777; margin-top: 2px; }
+.section { background: white; border-radius: 10px; padding: 20px 24px; margin-bottom: 20px;
+           box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+.section h2 { font-size: 15px; font-weight: 600; color: #1a237e; border-bottom: 1px solid #e8ecf0;
+              padding-bottom: 10px; margin-bottom: 16px; }
+.sub { font-size: 12px; color: #888; margin-bottom: 14px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { background: #f0f2f8; text-align: left; padding: 8px 12px; color: #333; font-weight: 600; }
+td { padding: 7px 12px; border-bottom: 1px solid #f0f2f0; vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+.bar-wrap { background: #eef0f8; border-radius: 4px; height: 6px; width: 100px; display: inline-block; vertical-align: middle; }
+.bar { background: #3949ab; height: 6px; border-radius: 4px; }
+.tag-h { background: #e8eaf6; color: #3949ab; padding: 1px 6px; border-radius: 3px; font-size: 11px; font-weight: 600; }
+.tag-m { background: #e8f5e9; color: #2e7d32; padding: 1px 6px; border-radius: 3px; font-size: 11px; }
+.tag-u { background: #fce4ec; color: #c62828; padding: 1px 6px; border-radius: 3px; font-size: 11px; }
+.wow-box { background: #fffde7; border-left: 4px solid #f9a825; border-radius: 6px; padding: 14px 18px; margin-bottom: 14px; }
+.wow-box h3 { font-size: 13px; color: #5d4037; margin-bottom: 8px; }
+.wn { color: #2e7d32; font-weight: 600; }
+.wd { color: #c62828; font-weight: 600; }
+.wi { font-size: 13px; margin: 3px 0 3px 12px; }
+.asin-hd { font-size: 13px; font-weight: 600; color: #1a237e; background: #f0f2f8;
+           padding: 4px 10px; border-radius: 5px; display: inline-block; margin: 10px 0 6px; }
+.qi { font-size: 13px; padding: 3px 0 3px 12px; border-left: 2px solid #e0e0e0; margin: 2px 0; }
+details summary { cursor: pointer; font-size: 13px; font-weight: 600; color: #3949ab; padding: 8px 0; }
+"""
+
+    parts = [f"""<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alexa 问题分析报告 {esc(RUN_TIMESTAMP)}</title>
+<style>{CSS}</style>
+</head>
+<body>
+<div class="header">
+  <h1>📊 Amazon Alexa 问题分析报告 — 手机三脚架品类</h1>
+  <div class="meta">抓取时间：{esc(RUN_DATETIME)} &nbsp;|&nbsp; 监控：{len(ASINS)} 个ASIN
+  &nbsp;|&nbsp; 成功：{success_count} 个 &nbsp;|&nbsp; 未抓到/失败：{esc(", ".join(failed_asins) if failed_asins else "无")}</div>
+</div>
+<div class="container">
+"""]
+
+    # 概览卡片
+    hf_count = len(analysis["high_freq"])
+    mf_count = len(analysis["mid_freq"])
+    unique_q_total = sum(len(qs) for qs in analysis["unique_questions"].values())
+    all_q_count = len(q2a)
+    parts.append(f"""<div class="cards">
+  <div class="card"><div class="num">{success_count}/{len(ASINS)}</div><div class="lbl">抓取成功</div></div>
+  <div class="card"><div class="num">{all_q_count}</div><div class="lbl">不同问题总数</div></div>
+  <div class="card"><div class="num">{hf_count}</div><div class="lbl">高频共性问题</div></div>
+  <div class="card"><div class="num">{mf_count}</div><div class="lbl">中频问题</div></div>
+  <div class="card"><div class="num">{unique_q_total}</div><div class="lbl">独有问题</div></div>
+</div>
+""")
+
+    # WoW 对比
+    if wow_data:
+        parts.append('<div class="section"><h2>🔁 WoW 对比分析</h2>')
+        parts.append(f'<div class="sub">对比基准：上周 {esc(wow_data["prev_scraped_at"])}，成功 {wow_data["prev_total_asins"]} 个ASIN</div>')
+        parts.append('<div class="wow-box"><h3>高频共性问题变化</h3>')
+        if wow_data["high_freq_new"]:
+            parts.append('<div class="wi wn">🆕 新进入高频：</div>')
+            for q in wow_data["high_freq_new"]:
+                parts.append(f'<div class="wi wn">• {esc(q)}</div>')
+        if wow_data["high_freq_dropped"]:
+            parts.append('<div class="wi wd">📉 退出高频：</div>')
+            for q in wow_data["high_freq_dropped"]:
+                parts.append(f'<div class="wi wd">• {esc(q)}</div>')
+        if wow_data["hf_coverage_change"]:
+            parts.append('<table style="margin-top:8px"><tr><th>问题</th><th>上周</th><th>本周</th><th>变化</th></tr>')
+            for item in wow_data["hf_coverage_change"]:
+                delta = item["curr"] - item["prev"]
+                p_pct = f"{item['prev']/item['total_prev']:.0%}" if item["total_prev"] else "0%"
+                c_pct = f"{item['curr']/item['total_curr']:.0%}" if item["total_curr"] else "0%"
+                arrow_cls = "wn" if delta > 0 else "wd"
+                arrow = f"▲{delta}" if delta > 0 else f"▼{abs(delta)}"
+                parts.append(f'<tr><td>{esc(item["question"])}</td>'
+                              f'<td>{item["prev"]}/{item["total_prev"]} ({p_pct})</td>'
+                              f'<td>{item["curr"]}/{item["total_curr"]} ({c_pct})</td>'
+                              f'<td class="{arrow_cls}">{arrow}</td></tr>')
+            parts.append('</table>')
+        if not any([wow_data["high_freq_new"], wow_data["high_freq_dropped"], wow_data["hf_coverage_change"]]):
+            parts.append('<div class="wi">高频问题无变化</div>')
+        parts.append('</div>')  # wow-box
+
+        if wow_data["brand_new_questions"]:
+            parts.append(f'<h3 style="font-size:13px;color:#2e7d32;margin:14px 0 6px">✨ 全新问题（{len(wow_data["brand_new_questions"])}条）</h3>')
+            for q in wow_data["brand_new_questions"]:
+                parts.append(f'<div class="qi wn">+ {esc(q)}</div>')
+        if wow_data["disappeared_questions"]:
+            parts.append(f'<h3 style="font-size:13px;color:#c62828;margin:14px 0 6px">👻 消失的问题（{len(wow_data["disappeared_questions"])}条）</h3>')
+            for q in wow_data["disappeared_questions"]:
+                parts.append(f'<div class="qi wd">- {esc(q)}</div>')
+        if wow_data["asin_changes"]:
+            parts.append(f'<details style="margin-top:14px"><summary>📝 ASIN 级别变化（{len(wow_data["asin_changes"])} 个有增减）</summary><div style="padding:6px 0">')
+            for asin, changes in wow_data["asin_changes"].items():
+                parts.append(f'<div><span class="asin-hd">{esc(asin)}</span>')
+                for q in changes.get("added", []):
+                    parts.append(f'<div class="qi wn">➕ {esc(q)}</div>')
+                for q in changes.get("removed", []):
+                    parts.append(f'<div class="qi wd">➖ {esc(q)}</div>')
+                parts.append('</div>')
+            parts.append('</div></details>')
+        parts.append('</div>')  # section
+
+    # 高频问题
+    pct_threshold = threshold / total if total else 0
+    parts.append(f'<div class="section"><h2>一、高频共性问题 <span style="font-size:12px;color:#888;font-weight:normal">（≥{threshold} 个ASIN，{pct_threshold:.0%}+）</span></h2>')
+    if analysis["high_freq"]:
+        parts.append('<table><tr><th>问题</th><th>出现ASIN数</th><th>覆盖率</th></tr>')
+        for q, asins in analysis["high_freq"]:
+            pct = len(asins) / total if total else 0
+            bar_w = int(pct * 100)
+            parts.append(f'<tr><td>{esc(q)}</td><td>{len(asins)}/{total}</td>'
+                          f'<td><span class="bar-wrap"><span class="bar" style="width:{bar_w}%"></span></span> {pct:.0%}</td></tr>')
+        parts.append('</table>')
+    else:
+        parts.append('<p style="color:#888;font-size:13px">本次未形成高频共性问题</p>')
+    parts.append('</div>')
+
+    # 中频问题
+    parts.append(f'<div class="section"><h2>二、中频问题 <span style="font-size:12px;color:#888;font-weight:normal">（2~{threshold-1} 个ASIN共有）</span></h2>')
+    if analysis["mid_freq"]:
+        parts.append('<table><tr><th>问题</th><th>ASIN数</th><th>涉及ASIN</th></tr>')
+        for q, asins in analysis["mid_freq"]:
+            parts.append(f'<tr><td>{esc(q)}</td><td>{len(asins)}</td>'
+                          f'<td style="font-size:11px;color:#666">{esc(", ".join(asins))}</td></tr>')
+        parts.append('</table>')
+    else:
+        parts.append('<p style="color:#888;font-size:13px">无中频问题</p>')
+    parts.append('</div>')
+
+    # 独有问题
+    unique_items = [(a, qs) for a, qs in analysis["unique_questions"].items() if qs]
+    if unique_items:
+        parts.append('<div class="section"><h2>三、独有问题（各ASIN专属）</h2>')
+        for asin, questions in unique_items:
+            parts.append(f'<div><span class="asin-hd">{esc(asin)}</span>')
+            for q in questions:
+                parts.append(f'<div class="qi">{esc(q)}</div>')
+            parts.append('</div>')
+        parts.append('</div>')
+
+    # 各ASIN完整列表
+    parts.append('<div class="section"><h2>四、各ASIN完整问题列表</h2>')
+    for asin, questions in asin_questions.items():
+        parts.append(f'<div><span class="asin-hd">{esc(asin)}</span>')
+        if not questions:
+            parts.append('<div class="qi" style="color:#999">未抓取到 Alexa 问题</div>')
+        else:
+            for q in questions:
+                cnt = len(q2a.get(q, []))
+                if cnt >= threshold:
+                    tag = f'<span class="tag-h">高频 {cnt}个</span>'
+                elif cnt >= 2:
+                    tag = f'<span class="tag-m">共 {cnt}个</span>'
+                else:
+                    tag = '<span class="tag-u">独有</span>'
+                parts.append(f'<div class="qi">{tag} {esc(q)}</div>')
+        parts.append('</div>')
+    parts.append('</div>')
+
+    parts.append('</div></body></html>')
+
+    html_content = "\n".join(parts)
+    OUTPUT_HTML.write_text(html_content, encoding="utf-8")
+    print(f"✅ HTML 报告已保存: {OUTPUT_HTML}")
+    return OUTPUT_HTML
+
+
+# ─── GitHub Pages 推送 ────────────────────────────────────────────────────────
+
+def push_to_github_pages(html_path: Path) -> str:
+    """复制 HTML 到 GitHub Pages 仓库并推送，返回公开 URL。"""
+    dest_name = html_path.name
+    dest = GITHUB_REPO / dest_name
+    try:
+        shutil.copy2(str(html_path), str(dest))
+        subprocess.run(["git", "add", dest_name], cwd=str(GITHUB_REPO), check=True, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", f"rufus report: {RUN_TIMESTAMP}"],
+            cwd=str(GITHUB_REPO), check=True, capture_output=True,
+        )
+        subprocess.run(["git", "push"], cwd=str(GITHUB_REPO), check=True, capture_output=True)
+        url = f"{GITHUB_PAGES_BASE}/{dest_name}"
+        print(f"🚀 GitHub Pages 推送成功: {url}")
+        return url
+    except Exception as e:
+        print(f"❌ GitHub Pages 推送失败: {e}")
+        return ""
+
+
 # ─── Google Drive 上传 ─────────────────────────────────────────────────────────
 
 def upload_to_gdrive(file_path: Path, folder_id: str) -> str:
@@ -928,6 +1154,18 @@ def upload_to_gdrive(file_path: Path, folder_id: str) -> str:
         return ""
 
 
+def upload_to_gdrive_with_retry(file_path: Path, folder_id: str, max_attempts: int = 3) -> str:
+    for attempt in range(1, max_attempts + 1):
+        url = upload_to_gdrive(file_path, folder_id)
+        if url:
+            return url
+        if attempt < max_attempts:
+            wait = 2 ** attempt
+            print(f"  ⏳ 第{attempt}次失败，{wait}s 后重试...")
+            time.sleep(wait)
+    return ""
+
+
 # ─── 飞书通知 ──────────────────────────────────────────────────────────────────
 
 def send_feishu_report(analysis: dict, asin_questions: dict,
@@ -973,8 +1211,8 @@ def send_feishu_report(analysis: dict, asin_questions: dict,
     links_content = ""
     if drive_links:
         link_parts = []
-        if drive_links.get("md"):
-            link_parts.append(f"[📄 分析报告（MD）]({drive_links['md']})")
+        if drive_links.get("html"):
+            link_parts.append(f"[📄 分析报告（HTML）]({drive_links['html']})")
         if drive_links.get("excel"):
             link_parts.append(f"[📊 {AI_ASSISTANT_SHORT}问题汇总（Excel）]({drive_links['excel']})")
         if link_parts:
@@ -1003,28 +1241,7 @@ def send_feishu_report(analysis: dict, asin_questions: dict,
             "text": {"tag": "lark_md", "content": links_content}
         })
 
-    elements += [
-        {"tag": "hr"},
-        {
-            "tag": "div",
-            "text": {
-                "tag": "lark_md",
-                "content": (
-                    f"**🔁 高频共性问题**（≥ {analysis['threshold']} 个ASIN 出现）\n{hf_lines}"
-                )
-            }
-        },
-        {"tag": "hr"},
-        {
-            "tag": "div",
-            "text": {
-                "tag": "lark_md",
-                "content": f"**🔀 差异性问题摘要**\n{unique_summary}"
-            }
-        },
-    ]
-
-    # WoW 对比模块
+    # WoW 对比模块（提前到高频前，避免飞书截断）
     if wow_data:
         wow_lines = []
         wow_lines.append(f"📅 对比基准：{wow_data['prev_scraped_at']}")
@@ -1082,6 +1299,24 @@ def send_feishu_report(analysis: dict, asin_questions: dict,
         ]
 
     elements += [
+        {"tag": "hr"},
+        {
+            "tag": "div",
+            "text": {
+                "tag": "lark_md",
+                "content": (
+                    f"**🔁 高频共性问题**（≥ {analysis['threshold']} 个ASIN 出现）\n{hf_lines}"
+                )
+            }
+        },
+        {"tag": "hr"},
+        {
+            "tag": "div",
+            "text": {
+                "tag": "lark_md",
+                "content": f"**🔀 差异性问题摘要**\n{unique_summary}"
+            }
+        },
         {"tag": "hr"},
         {
             "tag": "note",
@@ -1265,12 +1500,19 @@ def main():
         wow_data=wow_data,
         run_statuses=run_statuses,
     )
+    generate_html_report(
+        deduped_questions,
+        analysis,
+        failed_asins,
+        wow_data=wow_data,
+        run_statuses=run_statuses,
+    )
 
-    # 上传 Google Drive
-    print("\n─── 上传 Google Drive ────────────────────────────────")
+    # 推送报告到 GitHub Pages，Excel 上传 Google Drive（带重试）
+    print("\n─── 推送报告 ────────────────────────────────────────")
     drive_links = {}
-    drive_links["md"] = upload_to_gdrive(OUTPUT_MD, GDRIVE_FOLDER_ID)
-    drive_links["excel"] = upload_to_gdrive(OUTPUT_EXCEL, GDRIVE_FOLDER_ID)
+    drive_links["html"] = push_to_github_pages(OUTPUT_HTML)
+    drive_links["excel"] = upload_to_gdrive_with_retry(OUTPUT_EXCEL, GDRIVE_FOLDER_ID)
 
     # 飞书通知
     send_feishu_report(
