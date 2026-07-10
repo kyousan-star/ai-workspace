@@ -79,6 +79,10 @@ LISTING_TASK_DIR       = SCRIPT_DIR.parent / "40 asin listing weekly 抓取"
 LISTING_SNAPSHOT_DIR   = LISTING_TASK_DIR / "data" / "snapshots"
 LISTING_DIFF_DIR       = LISTING_TASK_DIR / "data" / "raw" / "diffs"
 
+# 赞助位哨兵（Sponsored Prompts：SP/SB campaign 自动延伸的挂件广告位，2026-03-25 GA）
+OWN_BRAND              = "Vlogara"
+SPONSORED_PROMPT_RE    = re.compile(r"^\s*sponsored", re.I)
+
 # 输出路径
 GITHUB_REPO       = Path("/Users/lihuan/Documents/学习提升/AI/claude/桌面 claude code/Scheduled/美日金融市场daily brief")
 GITHUB_PAGES_BASE = "https://kyousan-star.github.io/-daily-brief"
@@ -1026,6 +1030,48 @@ def run_analysis_phase(keyword_data: list[dict], roster: dict,
     ok_questions = {a: qs for a, qs in asin_questions.items()
                     if run_statuses.get(a, {}).get("status") == "ok" and qs}
 
+    # ── 赞助位哨兵：把 Sponsored Prompts 广告位从有机问题中剥离 ──
+    # （广告位混进高频/gap 分析会污染口径；剥离后单独分类判定）
+    sponsored_hits = []
+    for a in list(ok_questions):
+        organic = []
+        for q in ok_questions[a]:
+            if SPONSORED_PROMPT_RE.match(q):
+                sponsored_hits.append({"asin": a, "prompt": q.strip()})
+            else:
+                organic.append(q)
+        ok_questions[a] = organic
+
+    # 宿主品牌查找：任务#10快照 + 关键词 Top5 明细
+    snapshot = _load_listing_snapshot()
+    brand_lookup = {a: v["brand"] for a, v in snapshot.items() if v.get("brand")}
+    for kw in keyword_data:
+        for e in kw["top_n"]:
+            if e.get("asin") and e.get("brand"):
+                brand_lookup.setdefault(e["asin"], e["brand"])
+
+    known_brands = sorted({b for b in brand_lookup.values() if b}, key=len, reverse=True)
+    for h in sponsored_hits:
+        host = brand_lookup.get(h["asin"], "")
+        p = h["prompt"].lower()
+        h["host_brand"] = host
+        h["brand"] = next((b for b in known_brands if b.lower() in p), "")
+        if not h["brand"]:
+            mm = re.search(r"why choose\s+([\w&'+.-]+)", h["prompt"], re.I)
+            h["brand"] = mm.group(1) if mm else ""
+        if a := h["asin"]:
+            if a in own_asins:
+                h["cls"] = "own_enrolled" if OWN_BRAND.lower() in p else "invaded"
+            elif host and host.lower() in p:
+                h["cls"] = "self"
+            elif host:
+                h["cls"] = "cross"
+            else:
+                h["cls"] = "unknown"
+    n_abnormal = sum(1 for h in sponsored_hits if h["cls"] in ("invaded", "cross"))
+    print(f"  赞助位哨兵：{len(sponsored_hits)} 条，异常 {n_abnormal} 条")
+    sponsored_watch = {"hits": sponsored_hits}
+
     # ── 竞品层（固定40） ──
     competitor_q = {a: ok_questions[a] for a in fixed_asins if a in ok_questions}
     comp_analysis = _analyze_question_set(competitor_q)
@@ -1082,6 +1128,7 @@ def run_analysis_phase(keyword_data: list[dict], roster: dict,
         "all_questions":    ok_questions,
         "run_statuses":     run_statuses,
         "roster":           roster,
+        "sponsored_watch":  sponsored_watch,
     }
 
 
@@ -1146,8 +1193,16 @@ def compute_wow(current: dict, prev: dict) -> dict:
                 qa_wow.append({"asin": asin, "question": r["question"],
                                "prev_grade": pr.get("grade"), "curr_grade": r["grade"]})
 
+    # 赞助位：品牌首次进场（对照历史累计名单，抗轮播抽样波动）
+    curr_sp_brands = {h["brand"] for h in current.get("sponsored_watch", {}).get("hits", [])
+                      if h.get("brand") and h["brand"].lower() != OWN_BRAND.lower()}
+    prev_seen = set(prev.get("sponsored_brands_seen", []))
+    sponsored_new_brands = sorted(curr_sp_brands - prev_seen) if prev_seen else []
+    current["sponsored_brands_seen"] = sorted(prev_seen | curr_sp_brands)
+
     return {
         "prev_date":      prev.get("run_date", "上周"),
+        "sponsored_new_brands": sponsored_new_brands,
         "comp_hf_new":    sorted(curr_hf - prev_hf),
         "comp_hf_drop":   sorted(prev_hf - curr_hf),
         "brand_new_q":    sorted(curr_all - prev_all),
@@ -1182,6 +1237,10 @@ def save_archive(current: dict):
                    for r in item["results"]]
             for asin, item in current.get("own_qa", {}).items()
         },
+        "sponsored_prompts": current.get("sponsored_watch", {}).get("hits", []),
+        "sponsored_brands_seen": current.get("sponsored_brands_seen")
+            or sorted({h["brand"] for h in current.get("sponsored_watch", {}).get("hits", [])
+                       if h.get("brand")}),
     }
     ARCHIVE_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"✅ 存档已保存: {ARCHIVE_FILE}")
@@ -1305,6 +1364,38 @@ details summary { cursor:pointer; font-size:12px; font-weight:600; color:#3949ab
             for lf in ins["learn_from"]:
                 parts.append(f'<tr><td>{_esc(lf.get("brand",""))}</td>'
                              f'<td>{_esc(lf.get("what",""))}</td><td>{_esc(lf.get("apply",""))}</td></tr>')
+            parts.append('</table>')
+        parts.append('</div>')
+
+    # ── 赞助位哨兵 ──
+    sw = current.get("sponsored_watch", {})
+    sp_new_brands = wow.get("sponsored_new_brands", []) if wow else []
+    if sw.get("hits") or sp_new_brands:
+        SP_CLS_LABEL = {"self": "自投（常态）", "cross": "⚠️ 跨页投放", "invaded": "🚨 入侵我方页",
+                        "own_enrolled": "ℹ️ 我方已enroll", "unknown": "宿主品牌未知"}
+        parts.append('<div class="sec"><h2>🪧 赞助位哨兵（Sponsored Prompts）</h2>')
+        parts.append('<div class="legend">挂件里的广告位（SP/SB campaign 自动延伸）。自投=品牌挂在自己 listing（常态）；'
+                     '跨页/入侵我方页=投放模式变化，需要行动。单周数量波动是广告轮播抽样特性，不做周环比解读</div>')
+        sp_alerts = []
+        for h in sw.get("hits", []):
+            if h["cls"] == "invaded":
+                sp_alerts.append(f'🚨 <b>P0</b> 竞品赞助位出现在我方 {_esc(h["asin"])} 页面：「{_esc(h["prompt"])}」')
+            elif h["cls"] == "cross":
+                sp_alerts.append(f'⚠️ 跨页投放：{_esc(h.get("brand") or "?")} 的赞助位出现在 '
+                                 f'{_esc(h.get("host_brand") or "?")}（{_esc(h["asin"])}）页面')
+            elif h["cls"] == "own_enrolled":
+                sp_alerts.append(f'ℹ️ 我方已被自动 enroll：{_esc(h["asin"])}「{_esc(h["prompt"])}」'
+                                 f'——去广告后台 Prompts tab 核对扣费')
+        if sp_new_brands:
+            sp_alerts.append('🆕 品牌首次进场：' + "、".join(_esc(b) for b in sp_new_brands))
+        if sp_alerts:
+            parts.append('<div class="wow-box">' + "<br>".join(sp_alerts) + '</div>')
+        if sw.get("hits"):
+            parts.append('<table><tr><th style="width:14%">宿主ASIN</th><th style="width:14%">宿主品牌</th>'
+                         '<th>赞助问题</th><th style="width:16%">判定</th></tr>')
+            for h in sw["hits"]:
+                parts.append(f'<tr><td>{_esc(h["asin"])}</td><td>{_esc(h.get("host_brand") or "—")}</td>'
+                             f'<td>{_esc(h["prompt"])}</td><td>{SP_CLS_LABEL.get(h["cls"], h["cls"])}</td></tr>')
             parts.append('</table>')
         parts.append('</div>')
 
@@ -1648,6 +1739,31 @@ def send_feishu(current: dict, wow: dict, html_url: str):
     hf_lines = "\n".join(f"{i+1}. {q}（{len(a)}/{ca.get('total', 1)} 个ASIN）"
                          for i, (q, a) in enumerate(hf[:8])) if hf else "暂无高频问题"
     elements.append({"tag": "div", "text": {"tag": "lark_md", "content": hf_lines}})
+    elements.append({"tag": "hr"})
+
+    # ── 赞助位哨兵：异常才展开，平时一行 ──
+    sw = current.get("sponsored_watch", {})
+    sp_new_brands = wow.get("sponsored_new_brands", []) if wow else []
+    sp_alerts = []
+    for h in sw.get("hits", []):
+        if h["cls"] == "invaded":
+            sp_alerts.append(f'🚨 **P0** 竞品赞助位入侵我方页面 {h["asin"]}：{h["prompt"]}')
+        elif h["cls"] == "cross":
+            sp_alerts.append(f'⚠️ 跨页投放：{h.get("brand") or "?"} → '
+                             f'{h.get("host_brand") or "?"}（{h["asin"]}）')
+        elif h["cls"] == "own_enrolled":
+            sp_alerts.append(f'ℹ️ 我方被自动enroll（{h["asin"]}），查广告后台 Prompts tab 扣费')
+    if sp_new_brands:
+        sp_alerts.append("🆕 赞助位品牌首次进场：" + "、".join(sp_new_brands))
+    if sp_alerts:
+        elements.append({"tag": "div", "text": {"tag": "lark_md",
+                         "content": "**🪧 赞助位哨兵**\n" + "\n".join(sp_alerts)}})
+    else:
+        n_hits = len(sw.get("hits", []))
+        sp_brands = sorted({h["brand"] for h in sw.get("hits", []) if h.get("brand")})
+        heartbeat = (f"🪧 赞助位哨兵：本周 {n_hits} 条自投（{'、'.join(sp_brands)}），无异常"
+                     if n_hits else "🪧 赞助位哨兵：本周未见赞助位，无异常")
+        elements.append({"tag": "div", "text": {"tag": "lark_md", "content": heartbeat}})
     elements.append({"tag": "hr"})
 
     # 各关键词 Top5 高频
