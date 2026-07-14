@@ -1,7 +1,7 @@
 ---
 name: amazon-listing-v2
-description: 当用户需要撰写或优化亚马逊英文 Listing 时触发。触发词：写listing、撰写listing、listing优化、写标题、写五点、写标题五点、listing文案、写描述、写ST。输出 Title/Bullets/Description/Search Terms/QA回答库/合规审计全套交付物，覆盖事实库建立、关键词分析、Parity/Gap、Rufus/COSMO语义映射全流程。不适用于：仅做语义审计或合规检查（使用 listing-rufus-cosmo-audit）。
-last_verified: 2026-06-03
+description: 当用户需要撰写或优化亚马逊英文 Listing 时触发。触发词：写listing、撰写listing、listing优化、写标题、写五点、写标题五点、listing文案、写描述、写ST。输出 Title/Bullets/Description/Search Terms/QA回答库/合规审计全套交付物，覆盖事实库建立、敏感词前置拦截、关键词分析、Parity/Gap、Rufus/COSMO语义映射全流程。不适用于：仅做语义审计或合规检查（使用 listing-rufus-cosmo-audit）。
+last_verified: 2026-07-14
 staleness_risk: high
 ---
 
@@ -43,8 +43,8 @@ staleness_risk: high
 ## 通用约束（始终生效）
 
 - Listing 中禁止使用 Emoji 及 Amazon 不允许的特殊符号。
-- 如当前对话中挂载了 `amazon_compliance_blacklist.txt`，所有输出必须逐条对照检查。
-- 若未挂载黑名单，输出前仍需检查常见高风险词：Best Seller、#1、No.1、Top Rated、Free Shipping、Guaranteed、cure、treat、medical claims、竞品品牌名、ASIN、站外 URL、联系方式、促销时效词等，并提醒用户做后台最终核查。
+- **敏感词拦截（强制）**：执行本 skill 时必须读取 `references/sensitive-claims.md`（A 无条件删除 / B 证据后置 / C 绝对化降级 三档词表），在**写作前**（Step 1 事实库判定 B/C 层声明）和**成稿后**（Step 6.3 三档审计）各执行一次扫描。扫描范围：Title、Bullets、Description、Search Terms、QA Answer Bank、A+ 文案草稿。凭记忆扫词 = 违规，必须现场读词表。
+- 摄影/Vlogging 配件类目注意：`compatible with [设备品牌/型号]` 是刚需流量词，按词表中的兼容性例外规则处理，不要一律删除。
 - 禁止输出未经证实的效果提升百分比。
 - 对 Amazon 政策、类目规范、后台字符限制存在不确定时，必须标注"需以当前 Seller Central 类目模板为准"。
 
@@ -53,19 +53,22 @@ staleness_risk: high
 ## 范例（标准模式）
 
 **INPUT**
-> 产品：竹制砧板 | 尺寸：18×12 inch | 材质：有机竹，FSC认证 | 特点：双面可用，带接汁凹槽，自带挂孔，不含BPA | 品牌：Bambu | 站点：美国 | 竞品关键词：bamboo cutting board、wood cutting board for kitchen、large cutting board with juice groove
+> 产品：竹制砧板 | 尺寸：18×12 inch | 材质：有机竹，FSC认证（证书 FSC-C123456）| 特点：双面可用，带接汁凹槽，自带挂孔 | 不含BPA（第三方检测报告，2026-03）| 供应商口头说"食品级"（无文件）| 品牌：Bambu | 站点：美国 | 竞品关键词：bamboo cutting board、wood cutting board for kitchen、large cutting board with juice groove
 
 **OUTPUT（节选，展示格式）**
 
-**Product Fact Bank（部分）**
+**Product Fact Bank（部分，含敏感声明判定）**
 
-| 属性 | 原始值 | 英文表达 | 证据来源 |
-|------|--------|----------|----------|
-| 尺寸 | 18×12 inch | 18 x 12 inch | 用户提供 |
-| 材质 | 有机竹，FSC认证 | FSC-certified organic bamboo | 用户提供 |
-| 功能 | 双面可用 | reversible double-sided surface | 用户提供 |
-| 功能 | 接汁凹槽 | deep juice groove around perimeter | 用户提供 |
-| 安全 | 不含BPA | BPA-free | 用户提供 |
+| 属性 | 原始值 | 英文表达 | claim层级 | 证据 | allowed_output |
+|------|--------|----------|----------|------|----------------|
+| 尺寸 | 18×12 inch | 18 x 12 inch | — | 用户提供 | 可写 |
+| 材质 | 有机竹，FSC认证 | FSC-certified organic bamboo | B（认证背书） | FSC证书 FSC-C123456 | **可写**（证据齐） |
+| 功能 | 双面可用 | reversible double-sided surface | — | 用户提供 | 可写 |
+| 功能 | 接汁凹槽 | deep juice groove around perimeter | — | 用户提供 | 可写 |
+| 安全 | 不含BPA | BPA-free | B（free-of） | 第三方检测报告 2026-03 | **可写**（证据齐） |
+| 安全 | "食品级"（口头） | ~~food grade~~ | B（认证背书） | 无文件 | **降级**：不写 food grade，改写日常使用场景 |
+
+> 判定规则：B/C 层声明在写作前就锁定 allowed_output（可写/降级/删除），正文永远不出现待删词。仅"用户说有"不构成证据，须有证书编号/报告/供应商文件。
 
 **Strategy Summary**
 - 目标人群：家庭厨房用户，注重环保和食品安全
@@ -75,11 +78,16 @@ staleness_risk: high
 - 差异化切入：环保认证 + 双面设计 + 防漏汁
 
 **Title**
-`Bambu Bamboo Cutting Board 18x12 Inch, FSC Certified Organic Bamboo, Reversible with Deep Juice Groove and Hanging Hole, BPA-Free`
-（字符数：130）
+`Bambu Bamboo Cutting Board 18x12 Inch, Reversible with Juice Groove`
+（字符数：67，≤75 含空格）
+
+**Item Highlights**
+`FSC-certified organic bamboo, BPA-free, deep juice groove, hanging hole, for meal prep and everyday kitchen use`
+（字符数：111，≤125）
 
 **Bullet Point 1**
-`FSC-CERTIFIED ORGANIC BAMBOO — Made from sustainably sourced organic bamboo verified by the Forest Stewardship Council, free from BPA and harmful chemicals, safe for food contact and everyday kitchen use.`（197字符）
+`FSC-CERTIFIED ORGANIC BAMBOO — Made from organic bamboo verified by the Forest Stewardship Council (cert. FSC-C123456) and tested BPA-free, built for everyday meal prep and serving.`（181字符）
+（注意：`food grade` 未写入——事实库判定为降级；`safe for food contact` 同理不写，无 food-contact 测试文件。）
 
 **Bullet Point 2**
 `REVERSIBLE DOUBLE-SIDED DESIGN — Flip between a smooth side for slicing vegetables and fruits and a grooved side for carving meats, maximizing versatility without needing two separate boards.`（191字符）
@@ -142,11 +150,15 @@ staleness_risk: high
 | 原始值 | 保留单位、型号、数量、材质、认证等原始表达 |
 | 可用于 Listing 的英文表达 | 转换成自然、合规的英文卖点表达 |
 | 是否可量化 | yes/no |
-| 证据来源 | 本品属性 / 包装清单 / 认证文件 / 用户说明 |
+| claim层级 | 对照 `references/sensitive-claims.md`：A / B / C / —（普通事实） |
+| 证据 | 证书编号 / 检测报告+日期 / 供应商文件 / 实测；"用户口头说有"不算证据 |
+| allowed_output | 可写 / 降级（写替代表达）/ 删除 |
 | 禁止推导 | 明确不能扩写的边界 |
 
 **事实库规则：**
 - 没有证据的表达必须降级为泛化表达，或放入"需用户确认"。
+- **敏感声明前置判定（写作前强制）**：读取 `references/sensitive-claims.md`，对每条 B/C 层声明（认证、free-of、环保、医疗功效、绝对化承诺、原产地等）在事实库中锁定 allowed_output。判定为"降级"的，用词表降级映射表给出替代表达；判定为"删除"的，正文和 ST 均不得出现。正文写作阶段不允许出现任何未判定的 B/C 层词。
+- 兼容型号（compatible with X）属高价值刚需表达，须有实测或规格书来源；无来源标"需确认"，不进正式稿。
 - 竞品卖点只能用于启发差异化，不能进入事实库。
 - 用户未提供的认证、测试数据、质保时长、兼容型号、材料等级，不得自行补全。
 - 如发现本品属性之间冲突，先列出冲突并追问，不能继续生成正式版本。
@@ -269,19 +281,26 @@ staleness_risk: high
 1. **缺失素材显式警告**：用户未提供关键词报告、VOC 或竞品资料时，必须在 Strategy Summary **之前**输出固定提示块：「⚠️ 本次分析中以下材料缺失：XXX，对应结论为推测，置信度较低」——不得让推测性输出与有数据支撑的输出混在一起无法区分。
 2. **视觉可读性**：各模块之间加醒目分隔线和模块标题，关键字段用 `**加粗**` 突出，避免长篇输出层次不清；如用户说"出可直接用的版本"，输出纯文本（去掉所有 Markdown 标记），方便直接粘贴进 Amazon 后台。
 
-#### 5.1 Title（标题）
+#### 5.1 Title（标题）— 2026-07-27 新政口径
 
-默认公式：
+**硬性规则（官方确认，2026-07-27 起生效）：**
+- **Title ≤ 75 characters（含空格）**，media 类目除外。超过 75 的旧标题会被 Amazon AI 渐进改写（listing 保持 active，非下架）；品牌备案卖家有 14 天审核窗。
+- **Item Highlights**：额外 125 characters，可搜索、搜索结果页和商详页均展示。装不进标题的属性词/场景词优先放这里，其次 Bullets/ST。
+- 既有规范仍生效：禁用特殊字符 `! $ ? _ { } ^ ¬ ¦`（品牌名自带除外）；非豁免词重复不得 >2 次。
+- 政策依据：`~/Documents/跨境业务/跨境知识库/amazon-title-policy-2026/references/policy-facts.md`（口径有疑问时读此文件，勿凭记忆）。
 
-`[Brand] + [Core Keyword] + [Primary Differentiator] + [Key Attribute] + [Main Use Case / Compatibility]`
+默认公式（75 字符下只保留最高价值元素）：
+
+`[Brand] + [Core Keyword] + [1-2 个最高价值属性/差异化]`
 
 要求：
-- 默认不超过 200 characters，具体以类目模板为准。
-- 前 50-80 characters 放核心品类词和最重要属性。
+- 核心品类词尽量前置。
+- 被挤出标题的关键词按优先级降级到 Item Highlights → Bullets → ST，不丢弃。
 - 不使用促销词、主观绝对词、竞品品牌词、ASIN。
 - 不堆砌重复词根。
 - 如品牌名未知，用 `[Brand]` 占位，不自行创造品牌。
-- 输出字符数。
+- 输出 Title 字符数 + Item Highlights 字符数。
+- 交付一并提示：7/27 前可在 Manage All Inventory → Edit → "View enhancements" 审阅 Amazon AI 推荐的标题和 Item Highlights。
 
 #### 5.2 Bullet Points（五点）
 
@@ -327,6 +346,7 @@ staleness_risk: high
 - 不重复单词或词根。
 - 不放 title、brand、bullet 已经充分覆盖的冗余词。
 - 不放竞品品牌、ASIN、促销词、主观词、违规词。
+- **单独复扫（强制）**：ST 成稿后对照 `references/sensitive-claims.md` 再扫一次。后台词不是"藏词区"——正文中被删除/降级的 A/B/C 层词，禁止转移进 ST。
 - 不需要常见错拼；仅在用户提供数据证明错拼有价值时才考虑。
 - 优先放同义词、缩写、替代表达、未在正文覆盖的场景词。
 - 输出 bytes/characters 估算。
@@ -342,6 +362,7 @@ staleness_risk: high
 规则：
 - 未真实出现的问题，标注为"建议覆盖问题"，不写成已发生用户提问。
 - 答案必须引用事实库，不得编造兼容型号、质保或性能。
+- **QA 回答同样受敏感词拦截约束**：回答草稿纳入 Step 6.3 扫描范围。客服回答里写 "yes, it's BPA-free / food grade" 同样构成宣称，须以事实库 allowed_output 为准。
 
 ---
 
@@ -360,15 +381,31 @@ staleness_risk: high
 | 关键词 | Title | Bullet | Description | ST | 是否重复过度 |
 |--------|-------|--------|-------------|----|--------------|
 
-#### 6.3 Compliance Risk Notes（合规风险）
+#### 6.3 Sensitive Claim Scan（敏感词三档审计，成稿后强制）
 
-检查：
-- 禁用词/夸大词。
-- 竞品品牌词/ASIN。
-- 医疗、健康、功效、绝对化承诺。
-- 促销、价格、物流、联系方式、外链。
-- 不支持的 HTML 或特殊符号。
-- 未证实认证、测试数据、质保、兼容性。
+对照 `references/sensitive-claims.md` 扫描全部字段（Title、Item Highlights、Bullets、Description、ST、QA Answer Bank、A+ 草稿），**必须展示处理结果，不得只输出"已检查"**。输出三档表：
+
+**① Removed Sensitive Terms（已删除）**
+
+| 原表达 | 层级 | 风险原因 | 所在字段 | 替代表达（如有） |
+|--------|------|----------|----------|------------------|
+
+**② Evidence-required Claims（凭证据保留/降级）**
+
+| 声明 | 层级 | 证据（证书编号/报告/文件） | 判定 | 所在字段 |
+|------|------|---------------------------|------|----------|
+
+**③ Category-template Final Check（需后台复核）**
+
+| 检查点 | 说明 |
+|--------|------|
+| 类目字符限制 / HTML / 合规字段 | 以当前 Seller Central 类目模板为准 |
+| 兼容性表达 | compatible with [brand] 已按品类例外规则处理，商标风险需人工确认 |
+| Search Terms | 已单独复扫，无正文删除词转移 |
+
+附加检查（并入 ① ②）：促销/价格/物流/联系方式/外链、不支持的 HTML 或特殊符号、未证实认证/测试数据/质保/兼容性。
+
+**实战回流**：用户报告 Listing 被驳回/抑制/强制改写时，把命中词+触发语境回填 `references/sensitive-claims.md` 末尾「实战黑名单」，并提醒同步上游 SOP（`~/Documents/跨境业务/跨境知识库/playbooks/Amazon Listing敏感词前置拦截SOP.md`）。
 
 #### 6.4 Missing Data（缺失资料）
 
@@ -395,8 +432,8 @@ staleness_risk: high
 - 差异化切入点
 - 风险表达
 
-**3. TITLE**
-英文标题 + 字符数。
+**3. TITLE + ITEM HIGHLIGHTS**
+英文标题（≤75 含空格）+ 字符数；Item Highlights（≤125）+ 字符数。
 
 **4. BULLET POINTS**
 5 条英文五点 + 每条字符数。
@@ -413,7 +450,7 @@ staleness_risk: high
 **8. AUDIT**
 - Claim Audit
 - Keyword Map
-- Compliance Risk Notes
+- Sensitive Claim Scan（三档表：Removed / Evidence-required / Category Final Check）
 - Missing Data
 
 **9. REVISION OPTIONS**
@@ -435,4 +472,4 @@ staleness_risk: high
 
 ---
 
-*Skill 版本：v2 | 适用品类：Amazon 全品类*
+*Skill 版本：v2.2（2026-07-14：敏感词三档拦截 references/sensitive-claims.md + Title 75字符新政/Item Highlights）| 适用品类：Amazon 全品类*

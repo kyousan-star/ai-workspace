@@ -1,7 +1,7 @@
 ---
 name: listing-rufus-cosmo-audit
 description: 对已有Listing做Rufus/COSMO语义审计时触发。触发词：listing审计、审计listing、rufus审计、cosmo审计、listing audit、语义审计、Query Intent覆盖检查、COSMO契合度。输入已完成的Listing文本，输出5维评分+差距分析+改写建议。不适用于：从零撰写Listing（用 amazon-listing-v2）。
-last_verified: 2026-06-03
+last_verified: 2026-07-14
 staleness_risk: high
 ---
 
@@ -152,7 +152,8 @@ staleness_risk: high
 
 | 字段 | 建议范围 | 硬上限 | 说明 |
 |------|---------|--------|------|
-| Title | 80–150 字符 | 200 字符 | 低于 80 信息不足，高于 200 被截断 |
+| Title | ≤ 75 字符（含空格） | 75 字符 | 2026-07-27 新政（media 类目除外）；超限会被 Amazon AI 渐进改写。政策口径见 `~/Documents/跨境业务/跨境知识库/amazon-title-policy-2026/references/policy-facts.md` |
+| Item Highlights | ≤ 125 字符 | 125 字符 | 新政字段，可搜索可见；未提供时记录为 gap |
 | 每条 Bullet | 100–250 字符 | — | 低于 100 过于简短，高于 250 可读性下降 |
 | Backend Search Terms | ≤ 250 bytes | 250 bytes | 超出部分亚马逊忽略 |
 
@@ -175,15 +176,14 @@ staleness_risk: high
 
 ### Dimension 5：Risk & Compliance（权重 10%）
 
-**审计项目**：
-- 无证据的绝对性表达："best"、"#1"、"most popular"、"No.1"
-- 医疗/健康功效声明（无认证）
-- 质保/终身承诺（与 ToS 冲突）
-- 商标符号干扰（TM、® 过多）
-- 全大写词滥用
-- 竞品品牌名（IP 投诉风险）
-- Amazon 政策明确禁止词（促销词、外链、联系方式等）
-- 促销时效词（"limited time"、"buy now"等）
+**词表依据（强制读取）**：`../amazon-listing-v2/references/sensitive-claims.md`（与 amazon-listing-v2 共享的三档词表：A 无条件删除 / B 证据后置 / C 绝对化降级，含降级映射和摄影配件类目兼容性例外）。凭记忆扫词 = 违规。
+
+**审计项目**（按词表逐档对照，覆盖 Title、Item Highlights、Bullets、Description、ST）：
+- A 层：排名背书、促销时效、站外导流、竞品品牌名/ASIN
+- B 层：医疗/健康功效、杀菌/EPA、环保/free-of、认证背书（FDA/food grade/lab tested 等）、Made in USA——标注"需证据，建议向用户核实"
+- C 层：绝对化表达（best、#1、100% waterproof、lifetime、guaranteed 等）——给出参数化替代建议
+- 词表外补充：商标符号干扰（TM、® 过多）、全大写词滥用
+- 违规项报告中标注所属层级，并从词表降级映射表给替代表达
 
 **评分标准**：
 - 9–10：零违规
