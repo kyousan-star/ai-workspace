@@ -5,7 +5,7 @@
 ## 目录结构
 
 ```
-AI-skills/
+ai-workspace/
 ├── skills/        # 可复用 skill（Claude + Codex 共用）
 ├── prompts/       # 可复用 prompt 模板
 ├── sops/          # 标准操作流程
@@ -51,4 +51,4 @@ rm -rf ~/.claude/skills/<name> ~/.codex/skills/<name>
 
 ## 远程仓库
 
-https://github.com/kyousan-star/AI-skills
+https://github.com/kyousan-star/ai-workspace
