@@ -1,0 +1,14 @@
+{
+  "project_id": "p1-throughput",
+  "brand": "VLOGARA",
+  "sku": "P1-DEMO",
+  "kind": "listing-image",
+  "slot": "PT02",
+  "operation": "generate",
+  "prompt": "Create a square studio product photograph of one matte black ceramic planter on a pure white seamless background. Three-quarter view, soft realistic grounding shadow, no text, no logo, no watermark.",
+  "references": [],
+  "invariants": ["one planter only", "matte black ceramic", "square composition"],
+  "avoid": ["plants", "text", "logo", "watermark", "extra objects"],
+  "expected_output": {"format": "png", "aspect_ratio": "1:1"},
+  "acceptance": ["one planter", "pure white background", "no text or logo"]
+}

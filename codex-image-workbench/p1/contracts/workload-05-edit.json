@@ -1,0 +1,20 @@
+{
+  "project_id": "p1-throughput",
+  "brand": "VLOGARA",
+  "sku": "P1-DEMO",
+  "kind": "listing-image",
+  "slot": "PT01-EDIT",
+  "operation": "edit",
+  "parent_asset_id": "wb-vlogara-p1-demo-listing-image-01KXHWX4TXTCNNA52HDEJKM7QW",
+  "prompt": "Change only the background of the supplied white ceramic planter photograph from light gray to pale blue. Preserve the planter geometry, crop, scale, white ceramic material, lighting direction and grounding shadow.",
+  "references": [
+    {
+      "path": "/Users/lihuan/ai-workspace/codex-image-workbench/p1/artifacts/results/p1-smoke/wb-vlogara-p1-demo-listing-image-01KXHWX4TXTCNNA52HDEJKM7QW-job_01KXHWX4TXCFZR3VSQ73ATQVY2.png",
+      "role": "edit-target"
+    }
+  ],
+  "invariants": ["same planter", "same geometry", "same crop and scale", "same shadow"],
+  "avoid": ["shape changes", "added objects", "text", "logo", "watermark"],
+  "expected_output": {"format": "png", "aspect_ratio": "1:1"},
+  "acceptance": ["only background color changed", "planter is preserved", "no text or logo"]
+}

@@ -1,0 +1,14 @@
+{
+  "project_id": "p1-throughput",
+  "brand": "VLOGARA",
+  "sku": "P1-DEMO",
+  "kind": "listing-image",
+  "slot": "PT04",
+  "operation": "generate",
+  "prompt": "Create a square studio product photograph of one compact silver desk lamp with a round base and a single curved neck on a pale gray background. Lamp switched on with soft warm light, no text, no logo, no watermark.",
+  "references": [],
+  "invariants": ["one lamp only", "silver finish", "round base", "single curved neck"],
+  "avoid": ["desk accessories", "text", "logo", "watermark", "extra lamps"],
+  "expected_output": {"format": "png", "aspect_ratio": "1:1"},
+  "acceptance": ["one lamp", "round base and curved neck", "no text or logo"]
+}

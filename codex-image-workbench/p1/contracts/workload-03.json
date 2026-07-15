@@ -1,0 +1,14 @@
+{
+  "project_id": "p1-throughput",
+  "brand": "VLOGARA",
+  "sku": "P1-DEMO",
+  "kind": "listing-image",
+  "slot": "PT03",
+  "operation": "generate",
+  "prompt": "Create a square catalog photograph of exactly two nested ceramic bowls, one navy blue and one warm yellow, on a light neutral tabletop. Front three-quarter view, soft daylight, no food, no text, no logo, no watermark.",
+  "references": [],
+  "invariants": ["exactly two bowls", "navy and yellow colors", "square composition"],
+  "avoid": ["food", "utensils", "text", "logo", "watermark", "extra bowls"],
+  "expected_output": {"format": "png", "aspect_ratio": "1:1"},
+  "acceptance": ["exactly two bowls", "specified colors", "no text or logo"]
+}
