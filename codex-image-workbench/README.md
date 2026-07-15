@@ -16,6 +16,34 @@ Local Amazon image production and optimization workbench.
 P0 supports an active, resumable Codex worker. It does not claim an official
 always-on Codex listener or unattended background generation.
 
+## P1 New Product Flow
+
+Launch projects now support a gated planning path:
+
+1. import normalized Product Facts, Claims, selling points, references,
+   competitor packages, and brand rules;
+2. resolve strategy blockers and product-photo capture requests;
+3. approve Gate 1 strategy;
+4. approve the Gate 2 image sequence;
+5. save reference-led Image Contracts and compile ready contracts into the
+   shared generation or manual-import queue.
+
+The browser exposes this path under `Launch Plan`. Codex can use the same path
+through seven P1 MCP tools, while the CLI equivalents are:
+
+```bash
+python3 -m workbench.cli import-intake --project <project-id> --json examples/p1-intake.json
+python3 -m workbench.cli save-strategy --project <project-id> --json examples/p1-strategy.json
+python3 -m workbench.cli decide-gate --project <project-id> --gate gate1 --status approved
+python3 -m workbench.cli save-sequence --project <project-id> --json examples/p1-sequence.json
+python3 -m workbench.cli decide-gate --project <project-id> --gate gate2 --status approved
+python3 -m workbench.cli save-contracts --project <project-id> --json examples/p1-contracts.json
+python3 -m workbench.cli queue-contracts --project <project-id>
+```
+
+The checked-in P1 inputs are synthetic workflow fixtures, not business facts or
+image-quality evidence. See `P1-STATUS.md` for the current validation boundary.
+
 ## Codex Plugin
 
 The thin plugin adapter lives at:

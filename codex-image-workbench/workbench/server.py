@@ -79,6 +79,10 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/projects":
                 self.send_json(self.app.list_projects())
                 return
+            launch_match = re.fullmatch(r"/api/projects/([^/]+)/launch", path)
+            if launch_match:
+                self.send_json(self.app.get_launch_workspace(launch_match.group(1)))
+                return
             project_match = re.fullmatch(r"/api/projects/([^/]+)", path)
             if project_match:
                 self.send_json(self.app.get_project(project_match.group(1)))
@@ -125,6 +129,47 @@ class Handler(BaseHTTPRequestHandler):
             path, query = self.route()
             if path == "/api/projects":
                 self.send_json(self.app.create_project(self.read_json()), HTTPStatus.CREATED)
+                return
+            launch_intake = re.fullmatch(r"/api/projects/([^/]+)/launch/intake", path)
+            if launch_intake:
+                payload = self.read_json()
+                self.send_json(
+                    self.app.import_launch_intake(
+                        launch_intake.group(1),
+                        payload.get("intake") if isinstance(payload.get("intake"), dict) else payload,
+                        str(payload.get("source_type", "ui_import")),
+                        "user",
+                    )
+                )
+                return
+            launch_strategy = re.fullmatch(r"/api/projects/([^/]+)/launch/strategy", path)
+            if launch_strategy:
+                self.send_json(self.app.save_launch_strategy(launch_strategy.group(1), self.read_json(), "user"))
+                return
+            launch_gate = re.fullmatch(r"/api/projects/([^/]+)/launch/gates/(gate1|gate2)", path)
+            if launch_gate:
+                payload = self.read_json()
+                self.send_json(
+                    self.app.decide_launch_gate(
+                        launch_gate.group(1),
+                        launch_gate.group(2),
+                        str(payload.get("status", "")),
+                        payload.get("decision") if isinstance(payload.get("decision"), dict) else {},
+                        "user",
+                    )
+                )
+                return
+            launch_sequence = re.fullmatch(r"/api/projects/([^/]+)/launch/sequence", path)
+            if launch_sequence:
+                self.send_json(self.app.save_launch_sequence(launch_sequence.group(1), self.read_json(), "user"))
+                return
+            launch_contracts = re.fullmatch(r"/api/projects/([^/]+)/launch/contracts", path)
+            if launch_contracts:
+                self.send_json(self.app.save_image_contracts(launch_contracts.group(1), self.read_json(), "user"))
+                return
+            launch_queue = re.fullmatch(r"/api/projects/([^/]+)/launch/contracts/queue", path)
+            if launch_queue:
+                self.send_json(self.app.queue_image_contracts(launch_queue.group(1), "user"))
                 return
             project_jobs = re.fullmatch(r"/api/projects/([^/]+)/jobs", path)
             if project_jobs:

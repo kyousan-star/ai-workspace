@@ -4,7 +4,7 @@ import sqlite3
 from pathlib import Path
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def connect(path: Path) -> sqlite3.Connection:
@@ -132,12 +132,92 @@ def initialize(path: Path, workspace: Path) -> None:
                 failed_count INTEGER NOT NULL DEFAULT 0
             );
 
+            CREATE TABLE IF NOT EXISTS project_intakes (
+                project_id TEXT PRIMARY KEY,
+                schema_version TEXT NOT NULL,
+                source_type TEXT NOT NULL,
+                intake_json TEXT NOT NULL,
+                imported_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY(project_id) REFERENCES projects(project_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS coverage_reports (
+                report_id TEXT PRIMARY KEY,
+                project_id TEXT NOT NULL,
+                status TEXT NOT NULL CHECK(status IN ('passed', 'warning', 'blocked')),
+                report_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(project_id) REFERENCES projects(project_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS project_strategies (
+                strategy_id TEXT PRIMARY KEY,
+                project_id TEXT NOT NULL,
+                version INTEGER NOT NULL,
+                status TEXT NOT NULL CHECK(status IN (
+                    'draft', 'awaiting_gate1', 'approved', 'changes_requested', 'superseded'
+                )),
+                strategy_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(project_id, version),
+                FOREIGN KEY(project_id) REFERENCES projects(project_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS project_gates (
+                project_id TEXT NOT NULL,
+                gate_key TEXT NOT NULL CHECK(gate_key IN ('gate1', 'gate2')),
+                status TEXT NOT NULL CHECK(status IN ('pending', 'awaiting', 'approved', 'changes_requested')),
+                decision_json TEXT NOT NULL,
+                decided_by TEXT,
+                decided_at TEXT,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY(project_id, gate_key),
+                FOREIGN KEY(project_id) REFERENCES projects(project_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS image_sequences (
+                sequence_id TEXT PRIMARY KEY,
+                project_id TEXT NOT NULL,
+                version INTEGER NOT NULL,
+                status TEXT NOT NULL CHECK(status IN (
+                    'awaiting_gate2', 'approved', 'changes_requested', 'superseded'
+                )),
+                sequence_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(project_id, version),
+                FOREIGN KEY(project_id) REFERENCES projects(project_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS image_contracts (
+                contract_id TEXT PRIMARY KEY,
+                project_id TEXT NOT NULL,
+                sequence_id TEXT NOT NULL,
+                slot_key TEXT NOT NULL,
+                version INTEGER NOT NULL,
+                status TEXT NOT NULL CHECK(status IN ('blocked', 'ready', 'queued', 'superseded')),
+                contract_json TEXT NOT NULL,
+                job_id TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(project_id, slot_key, version),
+                FOREIGN KEY(project_id) REFERENCES projects(project_id),
+                FOREIGN KEY(sequence_id) REFERENCES image_sequences(sequence_id),
+                FOREIGN KEY(job_id) REFERENCES jobs(job_id)
+            );
+
             CREATE INDEX IF NOT EXISTS jobs_queue_idx
                 ON jobs(execution_status, execution_mode, queued_at);
             CREATE INDEX IF NOT EXISTS assets_project_idx
                 ON assets(project_id, created_at);
             CREATE INDEX IF NOT EXISTS events_entity_idx
                 ON events(entity_type, entity_id, created_at);
+            CREATE INDEX IF NOT EXISTS coverage_project_idx
+                ON coverage_reports(project_id, created_at);
+            CREATE INDEX IF NOT EXISTS contracts_project_idx
+                ON image_contracts(project_id, status, slot_key);
             """
         )
         conn.execute(

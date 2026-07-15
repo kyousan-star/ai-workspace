@@ -31,6 +31,8 @@ button { cursor: pointer; }
   grid-template-columns: 236px minmax(0, 1fr) 300px;
   grid-template-rows: 58px minmax(0, 1fr);
 }
+.app-shell.planning-mode { grid-template-columns: 236px minmax(0, 1fr); }
+.planning-mode .inspector { display: none; }
 
 .topbar {
   grid-column: 1 / -1;
@@ -143,11 +145,44 @@ td { padding: 10px; border-top: 1px solid var(--soft-line); vertical-align: midd
 td.prompt-cell { max-width: 330px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row-actions { display: flex; gap: 5px; min-width: 128px; }
 .status-pill { display: inline-flex; align-items: center; min-height: 22px; padding: 0 7px; border-radius: 11px; font-size: 10px; font-weight: 700; white-space: nowrap; }
-.status-queued, .status-awaiting_import, .status-not_run { background: var(--amber-soft); color: var(--amber); }
+.status-queued, .status-awaiting_import, .status-not_run, .status-warning, .status-awaiting, .status-awaiting_gate1, .status-awaiting_gate2 { background: var(--amber-soft); color: var(--amber); }
 .status-leased, .status-needs_review { background: var(--blue-soft); color: var(--blue); }
-.status-succeeded, .status-passed, .status-candidate { background: var(--green-soft); color: var(--green); }
-.status-failed, .status-rejected { background: var(--coral-soft); color: var(--coral); }
-.status-transient { background: #eef1ee; color: var(--muted); }
+.status-succeeded, .status-passed, .status-candidate, .status-approved, .status-ready { background: var(--green-soft); color: var(--green); }
+.status-failed, .status-rejected, .status-blocked, .status-changes_requested { background: var(--coral-soft); color: var(--coral); }
+.status-transient, .status-pending, .status-draft, .status-superseded, .status-cancelled { background: #eef1ee; color: var(--muted); }
+
+.workflow-section { border-bottom: 1px solid var(--line); padding-bottom: 22px; }
+.workflow-section:last-child { border-bottom: 0; }
+.gate-actions { display: flex; gap: 6px; }
+.workflow-empty { min-height: 72px; display: grid; place-items: center; border: 1px dashed #c7d0c9; color: var(--muted); background: rgba(255,255,255,.45); font-size: 11px; }
+.coverage-metrics { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.coverage-metrics > div { min-width: 0; padding: 11px; border-right: 1px solid var(--soft-line); }
+.coverage-metrics > div:last-child { border-right: 0; }
+.coverage-metrics span, .coverage-metrics strong { display: block; }
+.coverage-metrics span { color: var(--muted); font-size: 10px; }
+.coverage-metrics strong { margin-top: 4px; font-size: 16px; overflow-wrap: anywhere; }
+.issue-layout { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
+.issue-group { border-left: 3px solid #98a29a; background: var(--surface); padding: 10px 12px; min-width: 0; }
+.issue-group > strong { display: block; font-size: 11px; margin-bottom: 7px; }
+.issue-group ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.issue-group li { display: grid; grid-template-columns: minmax(70px, .35fr) minmax(0, 1fr); gap: 8px; font-size: 10px; line-height: 1.35; }
+.issue-group li b { color: var(--muted); overflow-wrap: anywhere; }
+.issue-danger { border-color: var(--coral); }
+.issue-warning { border-color: var(--amber); }
+.issue-capture { border-color: var(--blue); }
+.strategy-layout { display: grid; grid-template-columns: minmax(240px, .7fr) minmax(0, 1.3fr); gap: 8px; }
+.priority-list, .strategy-facts { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; margin: 0; }
+.priority-list > div { display: grid; grid-template-columns: 28px minmax(0, 1fr); align-items: center; gap: 8px; padding: 10px; border-bottom: 1px solid var(--soft-line); }
+.priority-list > div:last-child { border-bottom: 0; }
+.priority-list > div > b { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; background: var(--ink); color: #fff; font-size: 10px; }
+.priority-list span { min-width: 0; }
+.priority-list strong, .priority-list small { display: block; overflow-wrap: anywhere; }
+.priority-list strong { font-size: 11px; }
+.priority-list small { color: var(--muted); margin-top: 2px; }
+.strategy-facts { display: grid; grid-template-columns: 100px minmax(0, 1fr); align-content: start; font-size: 10px; }
+.strategy-facts dt, .strategy-facts dd { padding: 9px 10px; border-bottom: 1px solid var(--soft-line); }
+.strategy-facts dt { color: var(--muted); }
+.strategy-facts dd { margin: 0; overflow-wrap: anywhere; }
 
 .asset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
 .asset-card { border: 1px solid var(--line); border-radius: 6px; background: var(--surface); overflow: hidden; text-align: left; padding: 0; min-width: 0; }
@@ -234,4 +269,12 @@ input:focus, select:focus, textarea:focus { border-color: var(--green); box-shad
   .quality-row { grid-template-columns: 54px minmax(0, 1fr); }
   .quality-row > :nth-last-child(-n+2) { grid-column: 2; }
   .topbar-actions .primary-button { padding: 0 9px; }
+  .section-heading { align-items: flex-start; gap: 10px; }
+  .gate-actions { flex-direction: column; }
+  .coverage-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .coverage-metrics > div { border-bottom: 1px solid var(--soft-line); }
+  .coverage-metrics > div:nth-child(2n) { border-right: 0; }
+  .coverage-metrics > div:nth-last-child(-n+2) { border-bottom: 0; }
+  .issue-layout, .strategy-layout { grid-template-columns: 1fr; }
+  .issue-group li { grid-template-columns: 1fr; gap: 2px; }
 }

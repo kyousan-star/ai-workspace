@@ -25,7 +25,7 @@ def emit(value: Any) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Codex Image Workbench P0 CLI")
+    parser = argparse.ArgumentParser(description="Codex Image Workbench CLI")
     parser.add_argument("--root", type=Path, default=DEFAULT_ROOT)
     parser.add_argument("--db", type=Path)
     parser.add_argument("--registry", type=Path)
@@ -86,6 +86,34 @@ def build_parser() -> argparse.ArgumentParser:
     asset = sub.add_parser("show-asset")
     asset.add_argument("--asset", required=True)
 
+    launch = sub.add_parser("launch")
+    launch.add_argument("--project", required=True)
+
+    intake = sub.add_parser("import-intake")
+    intake.add_argument("--project", required=True)
+    intake.add_argument("--json", type=Path, required=True)
+
+    strategy = sub.add_parser("save-strategy")
+    strategy.add_argument("--project", required=True)
+    strategy.add_argument("--json", type=Path, required=True)
+
+    gate = sub.add_parser("decide-gate")
+    gate.add_argument("--project", required=True)
+    gate.add_argument("--gate", choices=["gate1", "gate2"], required=True)
+    gate.add_argument("--status", choices=["approved", "changes_requested"], required=True)
+    gate.add_argument("--json", type=Path)
+
+    sequence = sub.add_parser("save-sequence")
+    sequence.add_argument("--project", required=True)
+    sequence.add_argument("--json", type=Path, required=True)
+
+    contracts = sub.add_parser("save-contracts")
+    contracts.add_argument("--project", required=True)
+    contracts.add_argument("--json", type=Path, required=True)
+
+    queue_contracts = sub.add_parser("queue-contracts")
+    queue_contracts.add_argument("--project", required=True)
+
     sub.add_parser("registry-check")
     return parser
 
@@ -132,6 +160,26 @@ def main(argv: list[str] | None = None) -> int:
             result = app.nominate_candidate(args.asset)
         elif args.command == "show-asset":
             result = app.get_asset(args.asset)
+        elif args.command == "launch":
+            result = app.get_launch_workspace(args.project)
+        elif args.command == "import-intake":
+            result = app.import_launch_intake(args.project, read_json(args.json), actor="cli")
+        elif args.command == "save-strategy":
+            result = app.save_launch_strategy(args.project, read_json(args.json), actor="cli")
+        elif args.command == "decide-gate":
+            result = app.decide_launch_gate(
+                args.project,
+                args.gate,
+                args.status,
+                read_json(args.json) if args.json else {},
+                actor="cli",
+            )
+        elif args.command == "save-sequence":
+            result = app.save_launch_sequence(args.project, read_json(args.json), actor="cli")
+        elif args.command == "save-contracts":
+            result = app.save_image_contracts(args.project, read_json(args.json), actor="cli")
+        elif args.command == "queue-contracts":
+            result = app.queue_image_contracts(args.project, actor="cli")
         elif args.command == "registry-check":
             result = app.registry_check()
         else:

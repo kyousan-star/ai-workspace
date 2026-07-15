@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Iterator
 
 from . import db
+from .p1 import build_coverage, normalize_intake, validate_contracts, validate_sequence, validate_strategy
 from .util import WorkbenchError, iso, json_dump, new_ulid, sha256_file, slug, technical_check, utcnow
 
 
@@ -238,6 +239,16 @@ class Workbench:
                     "expected_output", {"format": "png", "aspect_ratio": "1:1"}
                 ),
             }
+            for field in (
+                "claim_ids",
+                "claims",
+                "product_invariants",
+                "brand_invariants",
+                "change_only",
+                "contract_id",
+            ):
+                if field in payload:
+                    contract[field] = payload[field]
             if parent_asset_id:
                 contract["parent_asset_id"] = parent_asset_id
             canonical = json_dump(contract)
@@ -656,3 +667,416 @@ class Workbench:
             "stdout": completed.stdout.strip(),
             "stderr": completed.stderr.strip(),
         }
+
+    def _require_launch_project(self, conn: sqlite3.Connection, project_id: str) -> sqlite3.Row:
+        project = conn.execute("SELECT * FROM projects WHERE project_id = ?", (project_id,)).fetchone()
+        if not project:
+            raise WorkbenchError(f"unknown project: {project_id}")
+        if project["project_mode"] != "launch":
+            raise WorkbenchError("P1 launch workflow is only available for launch projects")
+        return project
+
+    def _cancel_pending_contract_jobs(
+        self,
+        conn: sqlite3.Connection,
+        project_id: str,
+        now: str,
+        reason: str,
+    ) -> None:
+        leased = conn.execute(
+            "SELECT j.job_id FROM jobs j JOIN image_contracts c ON c.job_id = j.job_id "
+            "WHERE c.project_id = ? AND c.status != 'superseded' AND j.execution_status = 'leased'",
+            (project_id,),
+        ).fetchall()
+        if leased:
+            raise WorkbenchError(
+                "cannot revise launch inputs while contract jobs are leased: "
+                + ", ".join(row["job_id"] for row in leased)
+            )
+        pending = conn.execute(
+            "SELECT j.job_id FROM jobs j JOIN image_contracts c ON c.job_id = j.job_id "
+            "WHERE c.project_id = ? AND c.status != 'superseded' "
+            "AND j.execution_status IN ('queued', 'awaiting_import')",
+            (project_id,),
+        ).fetchall()
+        for row in pending:
+            conn.execute(
+                "UPDATE jobs SET execution_status = 'cancelled', finished_at = ?, error = ?, "
+                "lease_owner = NULL, lease_expires_at = NULL WHERE job_id = ?",
+                (now, reason, row["job_id"]),
+            )
+            self.event(conn, "job", row["job_id"], "job.cancelled", "system", {"reason": reason})
+
+    def _supersede_launch_outputs(
+        self,
+        conn: sqlite3.Connection,
+        project_id: str,
+        now: str,
+        reason: str,
+        include_strategy: bool,
+        include_sequence: bool,
+    ) -> None:
+        self._cancel_pending_contract_jobs(conn, project_id, now, reason)
+        conn.execute(
+            "UPDATE image_contracts SET status = 'superseded', updated_at = ? "
+            "WHERE project_id = ? AND status != 'superseded'",
+            (now, project_id),
+        )
+        if include_sequence:
+            conn.execute(
+                "UPDATE image_sequences SET status = 'superseded', updated_at = ? "
+                "WHERE project_id = ? AND status != 'superseded'",
+                (now, project_id),
+            )
+        if include_strategy:
+            conn.execute(
+                "UPDATE project_strategies SET status = 'superseded', updated_at = ? "
+                "WHERE project_id = ? AND status != 'superseded'",
+                (now, project_id),
+            )
+
+    def import_launch_intake(
+        self,
+        project_id: str,
+        payload: dict[str, Any],
+        source_type: str = "codex_normalized",
+        actor: str = "codex",
+    ) -> dict[str, Any]:
+        intake = normalize_intake(payload)
+        coverage = build_coverage(intake)
+        now = iso()
+        report_id = f"coverage_{new_ulid()}"
+        with self.connect() as conn:
+            self._require_launch_project(conn, project_id)
+            self._supersede_launch_outputs(
+                conn,
+                project_id,
+                now,
+                "P1 intake was replaced",
+                include_strategy=True,
+                include_sequence=True,
+            )
+            conn.execute(
+                "INSERT INTO project_intakes(project_id, schema_version, source_type, intake_json, imported_at, updated_at) "
+                "VALUES(?, ?, ?, ?, ?, ?) ON CONFLICT(project_id) DO UPDATE SET "
+                "schema_version = excluded.schema_version, source_type = excluded.source_type, "
+                "intake_json = excluded.intake_json, imported_at = excluded.imported_at, updated_at = excluded.updated_at",
+                (project_id, intake["schema_version"], source_type, json_dump(intake), now, now),
+            )
+            conn.execute(
+                "INSERT INTO coverage_reports(report_id, project_id, status, report_json, created_at) "
+                "VALUES(?, ?, ?, ?, ?)",
+                (report_id, project_id, coverage["status"], json_dump(coverage), now),
+            )
+            for gate_key in ("gate1", "gate2"):
+                conn.execute(
+                    "INSERT INTO project_gates(project_id, gate_key, status, decision_json, updated_at) "
+                    "VALUES(?, ?, 'pending', '{}', ?) ON CONFLICT(project_id, gate_key) DO UPDATE SET "
+                    "status = 'pending', decision_json = '{}', decided_by = NULL, decided_at = NULL, updated_at = excluded.updated_at",
+                    (project_id, gate_key, now),
+                )
+            conn.execute("UPDATE projects SET updated_at = ? WHERE project_id = ?", (now, project_id))
+            self.event(
+                conn,
+                "project",
+                project_id,
+                "launch.intake_imported",
+                actor,
+                {"report_id": report_id, "coverage_status": coverage["status"]},
+            )
+        return self.get_launch_workspace(project_id)
+
+    def get_launch_workspace(self, project_id: str) -> dict[str, Any]:
+        with self.connect() as conn:
+            self._require_launch_project(conn, project_id)
+            intake_row = conn.execute(
+                "SELECT * FROM project_intakes WHERE project_id = ?", (project_id,)
+            ).fetchone()
+            coverage_row = conn.execute(
+                "SELECT * FROM coverage_reports WHERE project_id = ? ORDER BY created_at DESC LIMIT 1",
+                (project_id,),
+            ).fetchone()
+            strategy_row = conn.execute(
+                "SELECT * FROM project_strategies WHERE project_id = ? AND status != 'superseded' "
+                "ORDER BY version DESC LIMIT 1",
+                (project_id,),
+            ).fetchone()
+            sequence_row = conn.execute(
+                "SELECT * FROM image_sequences WHERE project_id = ? AND status != 'superseded' "
+                "ORDER BY version DESC LIMIT 1",
+                (project_id,),
+            ).fetchone()
+            gate_rows = conn.execute(
+                "SELECT * FROM project_gates WHERE project_id = ? ORDER BY gate_key", (project_id,)
+            ).fetchall()
+            if sequence_row:
+                contract_rows = conn.execute(
+                    "SELECT * FROM image_contracts WHERE project_id = ? AND sequence_id = ? "
+                    "AND status != 'superseded' ORDER BY slot_key",
+                    (project_id, sequence_row["sequence_id"]),
+                ).fetchall()
+            else:
+                contract_rows = []
+
+        intake = json.loads(intake_row["intake_json"]) if intake_row else None
+        coverage = json.loads(coverage_row["report_json"]) if coverage_row else None
+        strategy = row_dict(strategy_row)
+        if strategy:
+            strategy["strategy"] = json.loads(strategy.pop("strategy_json"))
+        sequence = row_dict(sequence_row)
+        if sequence:
+            sequence["sequence"] = json.loads(sequence.pop("sequence_json"))
+        gates = {}
+        for row in gate_rows:
+            gate = row_dict(row)
+            gate["decision"] = json.loads(gate.pop("decision_json"))
+            gates[gate["gate_key"]] = gate
+        contracts = []
+        for row in contract_rows:
+            contract = row_dict(row)
+            contracts.append(contract)
+        intake_meta = row_dict(intake_row)
+        if intake_meta:
+            intake_meta.pop("intake_json", None)
+        return {
+            "project_id": project_id,
+            "intake": intake,
+            "intake_meta": intake_meta,
+            "coverage": coverage,
+            "strategy": strategy,
+            "gates": gates,
+            "sequence": sequence,
+            "contracts": contracts,
+        }
+
+    def save_launch_strategy(
+        self,
+        project_id: str,
+        payload: dict[str, Any],
+        actor: str = "codex",
+    ) -> dict[str, Any]:
+        workspace = self.get_launch_workspace(project_id)
+        if not workspace["intake"] or not workspace["coverage"]:
+            raise WorkbenchError("import P1 intake before saving strategy")
+        strategy = validate_strategy(workspace["intake"], payload)
+        status = "awaiting_gate1" if workspace["coverage"]["strategy_status"] == "passed" else "draft"
+        now = iso()
+        with self.connect() as conn:
+            self._require_launch_project(conn, project_id)
+            self._supersede_launch_outputs(
+                conn,
+                project_id,
+                now,
+                "P1 strategy was replaced",
+                include_strategy=False,
+                include_sequence=True,
+            )
+            version = conn.execute(
+                "SELECT COALESCE(MAX(version), 0) + 1 FROM project_strategies WHERE project_id = ?",
+                (project_id,),
+            ).fetchone()[0]
+            conn.execute(
+                "UPDATE project_strategies SET status = 'superseded', updated_at = ? "
+                "WHERE project_id = ? AND status != 'superseded'",
+                (now, project_id),
+            )
+            strategy_id = f"strategy_{new_ulid()}"
+            conn.execute(
+                "INSERT INTO project_strategies(strategy_id, project_id, version, status, strategy_json, created_at, updated_at) "
+                "VALUES(?, ?, ?, ?, ?, ?, ?)",
+                (strategy_id, project_id, version, status, json_dump(strategy), now, now),
+            )
+            gate_status = "awaiting" if status == "awaiting_gate1" else "pending"
+            conn.execute(
+                "INSERT INTO project_gates(project_id, gate_key, status, decision_json, updated_at) "
+                "VALUES(?, 'gate1', ?, '{}', ?) ON CONFLICT(project_id, gate_key) DO UPDATE SET "
+                "status = excluded.status, decision_json = '{}', decided_by = NULL, decided_at = NULL, updated_at = excluded.updated_at",
+                (project_id, gate_status, now),
+            )
+            conn.execute(
+                "INSERT INTO project_gates(project_id, gate_key, status, decision_json, updated_at) "
+                "VALUES(?, 'gate2', 'pending', '{}', ?) ON CONFLICT(project_id, gate_key) DO UPDATE SET "
+                "status = 'pending', decision_json = '{}', decided_by = NULL, decided_at = NULL, updated_at = excluded.updated_at",
+                (project_id, now),
+            )
+            self.event(conn, "strategy", strategy_id, "launch.strategy_saved", actor, {"status": status})
+        return self.get_launch_workspace(project_id)
+
+    def decide_launch_gate(
+        self,
+        project_id: str,
+        gate_key: str,
+        status: str,
+        decision: dict[str, Any] | None = None,
+        actor: str = "user",
+    ) -> dict[str, Any]:
+        if gate_key not in {"gate1", "gate2"}:
+            raise WorkbenchError("gate_key must be gate1 or gate2")
+        if status not in {"approved", "changes_requested"}:
+            raise WorkbenchError("gate status must be approved or changes_requested")
+        workspace = self.get_launch_workspace(project_id)
+        now = iso()
+        if gate_key == "gate1":
+            if not workspace["strategy"]:
+                raise WorkbenchError("save strategy before Gate 1")
+            if status == "approved" and workspace["coverage"]["strategy_status"] != "passed":
+                raise WorkbenchError("strategy blockers must be resolved before Gate 1 approval")
+            entity_table = "project_strategies"
+            entity_id = workspace["strategy"]["strategy_id"]
+            entity_field = "strategy_id"
+        else:
+            if workspace["gates"].get("gate1", {}).get("status") != "approved":
+                raise WorkbenchError("Gate 1 must be approved before Gate 2")
+            if not workspace["sequence"]:
+                raise WorkbenchError("save image sequence before Gate 2")
+            entity_table = "image_sequences"
+            entity_id = workspace["sequence"]["sequence_id"]
+            entity_field = "sequence_id"
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT INTO project_gates(project_id, gate_key, status, decision_json, decided_by, decided_at, updated_at) "
+                "VALUES(?, ?, ?, ?, ?, ?, ?) ON CONFLICT(project_id, gate_key) DO UPDATE SET "
+                "status = excluded.status, decision_json = excluded.decision_json, decided_by = excluded.decided_by, "
+                "decided_at = excluded.decided_at, updated_at = excluded.updated_at",
+                (project_id, gate_key, status, json_dump(decision or {}), actor, now, now),
+            )
+            conn.execute(
+                f"UPDATE {entity_table} SET status = ?, updated_at = ? WHERE {entity_field} = ?",
+                (status, now, entity_id),
+            )
+            self.event(conn, "project", project_id, f"launch.{gate_key}_{status}", actor, decision or {})
+        return self.get_launch_workspace(project_id)
+
+    def save_launch_sequence(
+        self,
+        project_id: str,
+        payload: dict[str, Any],
+        actor: str = "codex",
+    ) -> dict[str, Any]:
+        workspace = self.get_launch_workspace(project_id)
+        if workspace["gates"].get("gate1", {}).get("status") != "approved":
+            raise WorkbenchError("Gate 1 must be approved before saving image sequence")
+        sequence = validate_sequence(workspace["strategy"]["strategy"], payload)
+        now = iso()
+        with self.connect() as conn:
+            self._cancel_pending_contract_jobs(conn, project_id, now, "P1 image sequence was replaced")
+            version = conn.execute(
+                "SELECT COALESCE(MAX(version), 0) + 1 FROM image_sequences WHERE project_id = ?",
+                (project_id,),
+            ).fetchone()[0]
+            conn.execute(
+                "UPDATE image_sequences SET status = 'superseded', updated_at = ? "
+                "WHERE project_id = ? AND status != 'superseded'",
+                (now, project_id),
+            )
+            conn.execute(
+                "UPDATE image_contracts SET status = 'superseded', updated_at = ? "
+                "WHERE project_id = ? AND status != 'superseded'",
+                (now, project_id),
+            )
+            sequence_id = f"sequence_{new_ulid()}"
+            conn.execute(
+                "INSERT INTO image_sequences(sequence_id, project_id, version, status, sequence_json, created_at, updated_at) "
+                "VALUES(?, ?, ?, 'awaiting_gate2', ?, ?, ?)",
+                (sequence_id, project_id, version, json_dump(sequence), now, now),
+            )
+            conn.execute(
+                "INSERT INTO project_gates(project_id, gate_key, status, decision_json, updated_at) "
+                "VALUES(?, 'gate2', 'awaiting', '{}', ?) ON CONFLICT(project_id, gate_key) DO UPDATE SET "
+                "status = 'awaiting', decision_json = '{}', decided_by = NULL, decided_at = NULL, updated_at = excluded.updated_at",
+                (project_id, now),
+            )
+            self.event(conn, "sequence", sequence_id, "launch.sequence_saved", actor, {"version": version})
+        return self.get_launch_workspace(project_id)
+
+    def save_image_contracts(
+        self,
+        project_id: str,
+        payload: dict[str, Any],
+        actor: str = "codex",
+    ) -> dict[str, Any]:
+        workspace = self.get_launch_workspace(project_id)
+        if workspace["gates"].get("gate2", {}).get("status") != "approved":
+            raise WorkbenchError("Gate 2 must be approved before saving image contracts")
+        contracts = validate_contracts(workspace["intake"], workspace["sequence"]["sequence"], payload)
+        sequence_id = workspace["sequence"]["sequence_id"]
+        version = workspace["sequence"]["version"]
+        now = iso()
+        with self.connect() as conn:
+            self._cancel_pending_contract_jobs(conn, project_id, now, "P1 image contracts were replaced")
+            conn.execute(
+                "UPDATE image_contracts SET status = 'superseded', updated_at = ? "
+                "WHERE project_id = ? AND status != 'superseded'",
+                (now, project_id),
+            )
+            for contract in contracts:
+                contract_id = f"contract_{new_ulid()}"
+                status = contract.pop("readiness")
+                conn.execute(
+                    "INSERT INTO image_contracts(contract_id, project_id, sequence_id, slot_key, version, status, contract_json, created_at, updated_at) "
+                    "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (contract_id, project_id, sequence_id, contract["slot_key"], version, status, json_dump(contract), now, now),
+                )
+                self.event(conn, "contract", contract_id, "launch.contract_saved", actor, {"status": status})
+        return self.get_launch_workspace(project_id)
+
+    def queue_image_contracts(self, project_id: str, actor: str = "user") -> dict[str, Any]:
+        workspace = self.get_launch_workspace(project_id)
+        if workspace["coverage"]["generation_status"] != "passed":
+            raise WorkbenchError("generation coverage blockers must be resolved before queueing")
+        if workspace["gates"].get("gate2", {}).get("status") != "approved":
+            raise WorkbenchError("Gate 2 must be approved before queueing")
+        if not workspace["contracts"]:
+            raise WorkbenchError("save image contracts before queueing")
+        blocked = [item for item in workspace["contracts"] if item["status"] == "blocked"]
+        if blocked:
+            reasons = [f"{item['slot_key']}: {', '.join(item['contract']['blocked_reasons'])}" for item in blocked]
+            raise WorkbenchError("blocked image contracts: " + "; ".join(reasons))
+
+        references = {item["reference_id"]: item for item in workspace["intake"]["references"]}
+        claims = {item["claim_id"]: item for item in workspace["intake"]["claims"]}
+        jobs = []
+        for item in workspace["contracts"]:
+            if item["job_id"]:
+                jobs.append(self.get_job(item["job_id"]))
+                continue
+            contract = item["contract"]
+            payload = {
+                "slot_key": contract["slot_key"],
+                "slot_title": contract.get("title") or contract["slot_key"],
+                "execution_mode": contract["execution_mode"],
+                "operation": contract["operation"],
+                "parent_asset_id": contract.get("parent_asset_id"),
+                "prompt": contract["prompt"],
+                "references": [
+                    {
+                        "reference_id": reference_id,
+                        "path": references[reference_id]["path"],
+                        "role": references[reference_id]["role"],
+                        "view": references[reference_id]["view"],
+                    }
+                    for reference_id in contract["reference_ids"]
+                ],
+                "invariants": contract["product_invariants"] + contract["brand_invariants"],
+                "product_invariants": contract["product_invariants"],
+                "brand_invariants": contract["brand_invariants"],
+                "change_only": contract["change_only"],
+                "avoid": contract["avoid"],
+                "acceptance": contract["acceptance"],
+                "expected_output": contract["expected_output"],
+                "claim_ids": contract["claim_ids"],
+                "claims": [claims[claim_id] for claim_id in contract["claim_ids"]],
+                "contract_id": item["contract_id"],
+                "idempotency_key": f"p1-{item['contract_id']}",
+            }
+            job, _ = self.create_job(project_id, payload)
+            with self.connect() as conn:
+                conn.execute(
+                    "UPDATE image_contracts SET status = 'queued', job_id = ?, updated_at = ? WHERE contract_id = ?",
+                    (job["job_id"], iso(), item["contract_id"]),
+                )
+                self.event(conn, "contract", item["contract_id"], "launch.contract_queued", actor, {"job_id": job["job_id"]})
+            jobs.append(job)
+        result = self.get_launch_workspace(project_id)
+        result["queued_jobs"] = jobs
+        return result

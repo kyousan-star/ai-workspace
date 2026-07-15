@@ -2,6 +2,7 @@ const state = {
   dashboard: null,
   projectId: null,
   project: null,
+  launch: null,
   selectedAssetId: null,
   uploadJobId: null,
   activeTab: "studio",
@@ -48,6 +49,16 @@ function statusLabel(status) {
     validated: "已验证",
     rejected: "已拒绝",
     retired: "已退役",
+    blocked: "阻断",
+    warning: "有提醒",
+    ready: "可执行",
+    pending: "待处理",
+    awaiting: "待确认",
+    awaiting_gate1: "待 Gate 1",
+    awaiting_gate2: "待 Gate 2",
+    changes_requested: "需修改",
+    draft: "草稿",
+    superseded: "已失效",
   }[status] || status;
 }
 
@@ -104,6 +115,9 @@ function renderWorkerState() {
 async function selectProject(projectId) {
   state.projectId = projectId;
   state.project = await api(`/api/projects/${encodeURIComponent(projectId)}`);
+  const isLaunch = state.project.project.project_mode === "launch";
+  state.launch = isLaunch ? await api(`/api/projects/${encodeURIComponent(projectId)}/launch`) : null;
+  state.activeTab = isLaunch ? "launch" : "studio";
   state.selectedAssetId = null;
   renderProjects();
   renderProject();
@@ -113,6 +127,7 @@ async function selectProject(projectId) {
 
 function renderProject() {
   const { project, jobs, assets } = state.project;
+  const isLaunch = project.project_mode === "launch";
   el("empty-view").classList.add("hidden");
   el("project-view").classList.remove("hidden");
   el("project-title").textContent = project.name;
@@ -121,10 +136,116 @@ function renderProject() {
   el("stat-open").textContent = jobs.filter((job) => ["queued", "leased", "awaiting_import"].includes(job.execution_status)).length;
   el("stat-assets").textContent = assets.length;
   el("stat-qc").textContent = assets.filter((asset) => ["not_run", "needs_review"].includes(asset.qc_status)).length;
+  el("launch-tab").classList.toggle("hidden", !isLaunch);
+  el("new-job-button").classList.toggle("hidden", isLaunch);
   renderJobs();
   renderAssets();
   renderQuality();
+  renderLaunch();
   fillParentOptions();
+  setActiveTab(state.activeTab);
+}
+
+function emptyWorkflow(message) {
+  return `<div class="workflow-empty">${escapeHtml(message)}</div>`;
+}
+
+function issueList(title, items, tone = "neutral") {
+  if (!items?.length) return "";
+  return `<div class="issue-group issue-${tone}"><strong>${escapeHtml(title)}</strong><ul>${items.map((item) => `<li><b>${escapeHtml(item.item || item.key || "")}</b><span>${escapeHtml(item.message || item.instruction || "")}</span></li>`).join("")}</ul></div>`;
+}
+
+function renderLaunch() {
+  if (!state.launch) {
+    el("launch-intake-summary").textContent = "";
+    el("launch-coverage").innerHTML = emptyWorkflow("尚未导入结构化输入");
+    el("launch-strategy").innerHTML = emptyWorkflow("尚无策略版本");
+    el("launch-sequence").innerHTML = emptyWorkflow("尚无图片序列");
+    el("launch-contracts").innerHTML = emptyWorkflow("尚无 Image Contract");
+    setLaunchActionState();
+    return;
+  }
+
+  const { intake, intake_meta: intakeMeta, coverage, strategy, gates = {}, sequence, contracts = [] } = state.launch;
+  if (!intake || !coverage) {
+    el("launch-intake-summary").textContent = "等待输入";
+    el("launch-coverage").innerHTML = emptyWorkflow("尚未导入结构化输入");
+  } else {
+    const metrics = coverage.metrics || {};
+    el("launch-intake-summary").innerHTML = `${pill(coverage.status)} ${escapeHtml(intakeMeta?.source_type || "")}`;
+    el("launch-coverage").innerHTML = `
+      <div class="coverage-metrics">
+        <div><span>Facts</span><strong>${metrics.facts || 0}</strong></div>
+        <div><span>Claims</span><strong>${metrics.claims || 0}</strong></div>
+        <div><span>卖点</span><strong>${metrics.selling_points || 0}</strong></div>
+        <div><span>可用产品图</span><strong>${metrics.usable_distinct_product_images || 0}</strong></div>
+        <div><span>可用竞品</span><strong>${metrics.usable_competitors || 0}</strong></div>
+        <div><span>生图准备</span><strong>${escapeHtml(statusLabel(coverage.generation_status))}</strong></div>
+      </div>
+      <div class="issue-layout">
+        ${issueList("策略阻断", coverage.strategy_blockers, "danger")}
+        ${issueList("素材缺口", coverage.generation_blockers, "danger")}
+        ${issueList("提醒", coverage.warnings, "warning")}
+        ${issueList("补拍清单", coverage.capture_requests, "capture")}
+      </div>`;
+  }
+
+  const gate1 = gates.gate1 || { status: "pending" };
+  el("launch-gate1-summary").innerHTML = pill(gate1.status);
+  if (strategy) {
+    const points = new Map((intake?.selling_points || []).map((item) => [item.selling_point_id, item.text]));
+    const data = strategy.strategy;
+    el("launch-strategy").innerHTML = `
+      <div class="strategy-layout">
+        <div class="priority-list">${data.selling_point_order.map((id, index) => `<div><b>${index + 1}</b><span><strong>${escapeHtml(points.get(id) || id)}</strong><small>${escapeHtml(id)}</small></span></div>`).join("")}</div>
+        <dl class="strategy-facts">
+          <dt>Claims</dt><dd>${data.claim_ids.length ? data.claim_ids.map(escapeHtml).join(" · ") : "无"}</dd>
+          <dt>类目基线</dt><dd>${data.category_baselines.length ? data.category_baselines.map((item) => escapeHtml(item.label)).join(" · ") : "无"}</dd>
+          <dt>合规边界</dt><dd>${data.compliance_boundaries.length ? data.compliance_boundaries.map(escapeHtml).join(" · ") : "无"}</dd>
+          <dt>视觉排除</dt><dd>${data.visual_exclusions.length ? data.visual_exclusions.map(escapeHtml).join(" · ") : "无"}</dd>
+        </dl>
+      </div>`;
+  } else {
+    el("launch-strategy").innerHTML = emptyWorkflow("尚无策略版本");
+  }
+
+  const gate2 = gates.gate2 || { status: "pending" };
+  el("launch-gate2-summary").innerHTML = pill(gate2.status);
+  if (sequence) {
+    el("launch-sequence").innerHTML = `<div class="table-wrap"><table><thead><tr><th>图位</th><th>任务</th><th>卖点</th><th>方法</th><th>参考视角</th></tr></thead><tbody>${sequence.sequence.slots.map((slot) => `<tr><td><strong>${escapeHtml(slot.slot_key)}</strong></td><td>${escapeHtml(slot.task)}</td><td>${escapeHtml(slot.selling_point_id || "基础图")}</td><td>${escapeHtml(slot.output_method)}</td><td>${escapeHtml(slot.required_views.join(" · ") || "-")}</td></tr>`).join("")}</tbody></table></div>`;
+  } else {
+    el("launch-sequence").innerHTML = emptyWorkflow("尚无图片序列");
+  }
+
+  el("launch-contract-summary").textContent = `${contracts.length} 个契约`;
+  el("launch-contracts").innerHTML = contracts.length ? `<div class="table-wrap"><table><thead><tr><th>图位</th><th>单变量</th><th>参考</th><th>模式</th><th>状态</th></tr></thead><tbody>${contracts.map((item) => `<tr><td><strong>${escapeHtml(item.slot_key)}</strong></td><td>${escapeHtml(item.contract.change_only)}</td><td>${escapeHtml(item.contract.reference_ids.join(" · "))}</td><td>${item.contract.execution_mode === "codex_auto" ? "Codex" : "手动回导"}</td><td>${pill(item.status)}</td></tr>`).join("")}</tbody></table></div>` : emptyWorkflow("尚无 Image Contract");
+  setLaunchActionState();
+}
+
+function setLaunchActionState() {
+  const launch = state.launch;
+  const coverage = launch?.coverage;
+  const gate1Ready = Boolean(launch?.strategy && coverage?.strategy_status === "passed");
+  const gate2Ready = Boolean(launch?.sequence && launch?.gates?.gate1?.status === "approved");
+  document.querySelectorAll('[data-gate="gate1"]').forEach((button) => { button.disabled = !gate1Ready; });
+  document.querySelectorAll('[data-gate="gate2"]').forEach((button) => { button.disabled = !gate2Ready; });
+  const contracts = launch?.contracts || [];
+  el("launch-queue-button").disabled = !(
+    contracts.length
+    && coverage?.generation_status === "passed"
+    && launch?.gates?.gate2?.status === "approved"
+    && contracts.every((item) => item.status === "ready")
+  );
+}
+
+function setActiveTab(tab) {
+  const isLaunch = state.project?.project?.project_mode === "launch";
+  state.activeTab = tab === "launch" && !isLaunch ? "studio" : tab;
+  document.querySelector(".app-shell").classList.toggle("planning-mode", state.activeTab === "launch");
+  document.querySelectorAll("[data-tab]").forEach((item) => item.classList.toggle("active", item.dataset.tab === state.activeTab));
+  el("launch-panel").classList.toggle("hidden", state.activeTab !== "launch");
+  el("studio-panel").classList.toggle("hidden", state.activeTab !== "studio");
+  el("quality-panel").classList.toggle("hidden", state.activeTab !== "quality");
 }
 
 function renderJobs() {
@@ -266,6 +387,9 @@ async function registerCandidate() {
 async function refreshProject(selectedAssetId = state.selectedAssetId) {
   if (!state.projectId) return;
   state.project = await api(`/api/projects/${encodeURIComponent(state.projectId)}`);
+  state.launch = state.project.project.project_mode === "launch"
+    ? await api(`/api/projects/${encodeURIComponent(state.projectId)}/launch`)
+    : null;
   state.selectedAssetId = selectedAssetId;
   renderProject();
   renderWorkerState();
@@ -383,11 +507,48 @@ el("file-input").addEventListener("change", async (event) => {
   try { await uploadResult(file); } catch (error) { toast(error.message); }
 });
 
+el("launch-import-button").addEventListener("click", () => {
+  el("launch-intake-input").value = "";
+  el("launch-intake-input").click();
+});
+
+el("launch-intake-input").addEventListener("change", async (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+  try {
+    const intake = JSON.parse(await file.text());
+    await api(`/api/projects/${encodeURIComponent(state.projectId)}/launch/intake`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ intake, source_type: "ui_json" }),
+    });
+    await refreshProject();
+    toast("结构化输入已导入");
+  } catch (error) { toast(error.message); }
+});
+
+document.querySelectorAll("[data-gate]").forEach((button) => button.addEventListener("click", async () => {
+  try {
+    await api(`/api/projects/${encodeURIComponent(state.projectId)}/launch/gates/${button.dataset.gate}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: button.dataset.gateStatus, decision: { source: "workbench_ui" } }),
+    });
+    await refreshProject();
+    toast(button.dataset.gateStatus === "approved" ? "Gate 已批准" : "已要求修改");
+  } catch (error) { toast(error.message); }
+}));
+
+el("launch-queue-button").addEventListener("click", async () => {
+  try {
+    await api(`/api/projects/${encodeURIComponent(state.projectId)}/launch/contracts/queue`, { method: "POST" });
+    await refreshProject();
+    toast("Image Contracts 已进入生成队列");
+  } catch (error) { toast(error.message); }
+});
+
 document.querySelectorAll("[data-tab]").forEach((button) => button.addEventListener("click", () => {
-  state.activeTab = button.dataset.tab;
-  document.querySelectorAll("[data-tab]").forEach((item) => item.classList.toggle("active", item === button));
-  el("studio-panel").classList.toggle("hidden", state.activeTab !== "studio");
-  el("quality-panel").classList.toggle("hidden", state.activeTab !== "quality");
+  setActiveTab(button.dataset.tab);
 }));
 
 loadDashboard().catch((error) => toast(error.message));

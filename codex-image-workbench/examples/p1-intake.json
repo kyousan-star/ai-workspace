@@ -1,0 +1,130 @@
+{
+  "schema_version": "p1-intake.1",
+  "source": {
+    "workflow_root": "/Users/lihuan/ai-workspace/codex-image-workbench"
+  },
+  "product": {
+    "name": "Synthetic Matte Planter Fixture",
+    "category": "Planters",
+    "facts": [
+      {
+        "fact_id": "fact-material",
+        "label": "Material",
+        "value": "Ceramic",
+        "status": "locked",
+        "required_for_visual": true,
+        "source": "synthetic fixture"
+      },
+      {
+        "fact_id": "fact-finish",
+        "label": "Finish",
+        "value": "Matte white",
+        "status": "locked",
+        "required_for_visual": true,
+        "source": "synthetic fixture references"
+      }
+    ],
+    "must_show": [
+      "Cylindrical silhouette",
+      "Rounded lower edge"
+    ],
+    "must_not_show": [
+      "Invented handles",
+      "Invented accessories"
+    ]
+  },
+  "claims": [
+    {
+      "claim_id": "claim-matte-finish",
+      "text": "Matte ceramic finish",
+      "status": "allowed",
+      "evidence": "Locked synthetic facts and approved fixture references",
+      "qualifier": "",
+      "selected_for_images": true
+    }
+  ],
+  "selling_points": [
+    {
+      "selling_point_id": "sp-finish",
+      "text": "Refined matte finish",
+      "status": "locked",
+      "evidence": [
+        "claim-matte-finish",
+        "ref-front"
+      ],
+      "visualizability": "high"
+    },
+    {
+      "selling_point_id": "sp-shape",
+      "text": "Balanced cylindrical silhouette",
+      "status": "locked",
+      "evidence": [
+        "ref-front",
+        "ref-detail"
+      ],
+      "visualizability": "high"
+    }
+  ],
+  "references": [
+    {
+      "reference_id": "ref-front",
+      "path": "p1/artifacts/results/p1-smoke/wb-vlogara-p1-demo-listing-image-01KXHWX4TXTCNNA52HDEJKM7QW-job_01KXHWX4TXCFZR3VSQ73ATQVY2.png",
+      "role": "product",
+      "view": "front",
+      "approved": true,
+      "visible_features": [
+        "matte finish",
+        "full silhouette"
+      ]
+    },
+    {
+      "reference_id": "ref-detail",
+      "path": "p1/artifacts/results/p1-throughput/wb-vlogara-p1-demo-listing-image-01KXHY7SEBMKJGV13DC1VKFB4H-job_01KXHY7SEBSS9VYJGY8V87ASH2.png",
+      "role": "detail",
+      "view": "detail",
+      "approved": true,
+      "visible_features": [
+        "matte finish",
+        "rounded lower edge"
+      ]
+    }
+  ],
+  "competitors": [
+    {
+      "competitor_id": "comp-fixture",
+      "name": "Synthetic Competitor Fixture",
+      "asin_or_url": "B000P1FIXTURE",
+      "role": "direct",
+      "listing_path": "examples/p1-demo-competitor-listing.txt",
+      "image_paths": [
+        "p1/artifacts/results/p1-throughput/wb-vlogara-p1-demo-listing-image-01KXHY7F58MT5P5HNYQ6ZSBBKT-job_01KXHY7F58JTB23J54X94D414C.png"
+      ]
+    }
+  ],
+  "brand": {
+    "status": "approved",
+    "system_path": "examples/p1-demo-brand-system.md",
+    "invariants": [
+      "Quiet neutral presentation",
+      "Product-first composition"
+    ],
+    "avoid": [
+      "Neon colors",
+      "Decorative image-model text"
+    ]
+  },
+  "coverage_requirements": {
+    "min_product_images": 2,
+    "min_competitors": 1,
+    "required_views": [
+      "front",
+      "detail"
+    ],
+    "required_visible_features": [
+      "matte finish",
+      "full silhouette",
+      "rounded lower edge"
+    ],
+    "require_approved_brand": true
+  }
+}

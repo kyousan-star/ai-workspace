@@ -1,0 +1,46 @@
+{
+  "contracts": [
+    {
+      "slot_key": "PT01",
+      "execution_mode": "manual_import",
+      "operation": "generate",
+      "prompt": "Create a square reference-led studio listing image of the exact matte white planter.",
+      "change_only": "Replace the background with clean light gray seamless paper.",
+      "reference_ids": [
+        "ref-front"
+      ],
+      "claim_ids": [
+        "claim-matte-finish"
+      ],
+      "avoid": [
+        "Text rendered by the image model"
+      ],
+      "acceptance": [
+        "Cylindrical silhouette matches the reference",
+        "Matte white finish remains unchanged",
+        "No added accessory"
+      ]
+    },
+    {
+      "slot_key": "PT02",
+      "execution_mode": "manual_import",
+      "operation": "generate",
+      "prompt": "Create a square reference-led lifestyle composite that preserves the exact planter.",
+      "change_only": "Add a restrained indoor shelf context and one unambiguous scale cue.",
+      "reference_ids": [
+        "ref-front",
+        "ref-detail"
+      ],
+      "claim_ids": [],
+      "avoid": [
+        "Extra drainage holes",
+        "Additional planters"
+      ],
+      "acceptance": [
+        "Product geometry matches the reference",
+        "Scale cue does not hide the product",
+        "Product remains the visual focus"
+      ]
+    }
+  ]
+}

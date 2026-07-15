@@ -54,6 +54,18 @@ class MCPServerTests(unittest.TestCase):
                         self.assertIn("claim_generation_job", names)
                         self.assertIn("evaluate_asset", names)
                         self.assertIn("register_candidate", names)
+                        self.assertEqual(23, len(names))
+                        self.assertTrue(
+                            {
+                                "import_launch_intake",
+                                "get_launch_workspace",
+                                "save_launch_strategy",
+                                "decide_launch_gate",
+                                "save_launch_sequence",
+                                "save_image_contracts",
+                                "queue_image_contracts",
+                            }.issubset(names)
+                        )
 
                         health = decode_result(await session.call_tool("workbench_health"))
                         self.assertTrue(health["ok"])

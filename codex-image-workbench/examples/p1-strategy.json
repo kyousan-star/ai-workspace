@@ -1,0 +1,30 @@
+{
+  "selling_point_order": [
+    "sp-finish",
+    "sp-shape"
+  ],
+  "claim_ids": [
+    "claim-matte-finish"
+  ],
+  "category_baselines": [
+    {
+      "baseline_id": "baseline-scale",
+      "label": "Show product scale",
+      "required": true,
+      "source": "synthetic competitor fixture"
+    }
+  ],
+  "rejected_techniques": [
+    "Exploded product view"
+  ],
+  "competitive_pitfalls": [
+    "Product shown too small"
+  ],
+  "compliance_boundaries": [
+    "Do not imply plant growth performance"
+  ],
+  "visual_exclusions": [
+    "No image-model text",
+    "No invented accessories"
+  ]
+}

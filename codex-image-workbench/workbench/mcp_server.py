@@ -183,6 +183,71 @@ def check_registry() -> dict[str, Any]:
     return app.registry_check()
 
 
+@mcp.tool()
+def import_launch_intake(
+    project_id: str,
+    intake: dict[str, Any],
+    source_type: str = "codex_normalized",
+    actor: str = "codex",
+) -> dict[str, Any]:
+    """Import normalized P1 product facts, claims, selling points, references, brand, and competitor inputs."""
+    return app.import_launch_intake(project_id, intake, source_type, actor)
+
+
+@mcp.tool()
+def get_launch_workspace(project_id: str) -> dict[str, Any]:
+    """Get P1 intake, coverage, strategy, Gate decisions, sequence, and image contracts."""
+    return app.get_launch_workspace(project_id)
+
+
+@mcp.tool()
+def save_launch_strategy(
+    project_id: str,
+    strategy: dict[str, Any],
+    actor: str = "codex",
+) -> dict[str, Any]:
+    """Save a P1 visual strategy draft using only IDs and evidence from the imported intake."""
+    return app.save_launch_strategy(project_id, strategy, actor)
+
+
+@mcp.tool()
+def decide_launch_gate(
+    project_id: str,
+    gate_key: str,
+    status: str,
+    decision: dict[str, Any] | None = None,
+    actor: str = "user",
+) -> dict[str, Any]:
+    """Record an explicit approved or changes_requested decision for Gate 1 or Gate 2."""
+    return app.decide_launch_gate(project_id, gate_key, status, decision or {}, actor)
+
+
+@mcp.tool()
+def save_launch_sequence(
+    project_id: str,
+    sequence: dict[str, Any],
+    actor: str = "codex",
+) -> dict[str, Any]:
+    """Save a slot sequence after Gate 1, preserving selling-point priority and required baselines."""
+    return app.save_launch_sequence(project_id, sequence, actor)
+
+
+@mcp.tool()
+def save_image_contracts(
+    project_id: str,
+    contracts: dict[str, Any],
+    actor: str = "codex",
+) -> dict[str, Any]:
+    """Save reference-led Image Contracts after Gate 2 and calculate per-slot readiness."""
+    return app.save_image_contracts(project_id, contracts, actor)
+
+
+@mcp.tool()
+def queue_image_contracts(project_id: str, actor: str = "user") -> dict[str, Any]:
+    """Compile ready approved P1 contracts into shared automatic or manual generation jobs."""
+    return app.queue_image_contracts(project_id, actor)
+
+
 def main() -> None:
     mcp.run(transport="stdio")
 

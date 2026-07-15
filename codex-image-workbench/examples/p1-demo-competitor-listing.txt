@@ -1,0 +1,4 @@
+Synthetic competitor fixture for the P1 workbench demo.
+
+Title: Minimal Ceramic Planter for Indoor Shelves
+Image pattern: white-background hero, finish detail, scale scene, drainage detail.

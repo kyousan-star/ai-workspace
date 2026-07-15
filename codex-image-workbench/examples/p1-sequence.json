@@ -1,0 +1,30 @@
+{
+  "slots": [
+    {
+      "slot_key": "PT01",
+      "position": 1,
+      "channel": "listing",
+      "selling_point_id": "sp-finish",
+      "task": "Show the exact finish and complete product silhouette",
+      "output_method": "reference-led studio edit",
+      "required_views": [
+        "front"
+      ],
+      "baseline_ids": []
+    },
+    {
+      "slot_key": "PT02",
+      "position": 2,
+      "channel": "listing",
+      "selling_point_id": "sp-shape",
+      "task": "Establish product scale without changing its geometry",
+      "output_method": "reference-led lifestyle composite",
+      "required_views": [
+        "front"
+      ],
+      "baseline_ids": [
+        "baseline-scale"
+      ]
+    }
+  ]
+}
