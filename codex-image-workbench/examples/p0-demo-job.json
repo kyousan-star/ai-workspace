@@ -1,0 +1,26 @@
+{
+  "slot_key": "PT01",
+  "execution_mode": "manual_import",
+  "operation": "generate",
+  "prompt": "Create a clean square studio product photograph of a plain white ceramic planter on a light gray seamless background.",
+  "invariants": [
+    "one planter only",
+    "plain white ceramic finish",
+    "square composition"
+  ],
+  "avoid": [
+    "text",
+    "logo",
+    "watermark",
+    "extra objects"
+  ],
+  "acceptance": [
+    "exactly one planter is visible",
+    "background is light gray",
+    "no text or logo is present"
+  ],
+  "expected_output": {
+    "format": "png",
+    "aspect_ratio": "1:1"
+  }
+}

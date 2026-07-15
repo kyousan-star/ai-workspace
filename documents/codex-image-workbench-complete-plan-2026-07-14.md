@@ -1,8 +1,8 @@
 # Codex Amazon 图片工作台完整产品与实施方案 V1.2
 
 > 文档版本：1.2
-> 日期：2026-07-14
-> 状态：P-1 Gate 有限制通过，可进入 P0 共享垂直闭环
+> 日期：2026-07-14，最后更新 2026-07-15
+> 状态：P-1 Gate 有限制通过；P0 核心垂直闭环已通过，集成收尾进行中
 > 范围：待上市新品视觉生产 + 已上市产品图片持续优化
 
 ### V1.2 修订摘要
@@ -773,6 +773,22 @@ Gate 结果：`PASS WITH LIMITS`。
 - 单项目、单图位生成任务；
 - 自动 Worker 与手动回导共用任务、结果和版本模型；
 - 结果画廊和基础父子版本。
+
+#### P0 核心实测结论（2026-07-15）
+
+状态：`CORE PASS / INTEGRATION IN PROGRESS`。
+
+- 已实现本地 Python 服务、SQLite 正式 schema、CLI、Studio/Quality 工作台和双执行模式；
+- `codex_auto` 与 `manual_import` 共用 GenerationJob、Asset、父子版本、事件和 QC 模型；
+- GenerationJob 执行状态、技术检查、人工 QC 和 Registry 治理状态已明确分层；
+- 手动模式已完成生成包导出、图片回导、SHA-256、技术检查、人工 QC 和候选按钮解锁实测；
+- `registryctl` 已支持带文件锁和原子替换的 candidate 登记、审批证据晋升、哈希校验和对账；
+- 中央 Registry 只读检查通过，共 30 条资产；浏览器验收未写入中央 Registry；
+- 7 项自动化测试通过，覆盖 lease 恢复、幂等、技术 Gate、QC Gate、父子版本、Registry 晋升和 HTTP API；
+- 1280 x 720 与 390 x 844 浏览器实测通过，前端控制台 0 error、0 warning；
+- 本地服务当前运行于 `http://127.0.0.1:8765`。
+
+P0 尚未关闭的集成项：Codex 插件清单与安装封装、另一个真实 Codex 任务的跨任务接管、15-30 次长负载 soak test。当前自动等级仍是 `interactive_resumable`，不得描述为无人值守后台。
 
 ### P1：新品 MVP，增加 5-8 个工作日
 

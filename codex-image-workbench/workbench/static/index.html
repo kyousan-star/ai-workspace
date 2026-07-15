@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>Codex Image Workbench</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand-lockup">
+          <span class="brand-mark">CI</span>
+          <div>
+            <strong><span class="brand-full">Codex Image Workbench</span><span class="brand-short">Workbench</span></strong>
+            <span>Amazon Visual Operations</span>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <span id="worker-state" class="worker-state"><i></i>空闲</span>
+          <button id="refresh-button" class="icon-button" type="button" title="刷新" aria-label="刷新">↻</button>
+          <button id="new-project-button" class="primary-button" type="button"><span>+</span> 新建项目</button>
+        </div>
+      </header>
+
+      <aside class="sidebar">
+        <div class="sidebar-heading">
+          <span>项目</span>
+          <span id="project-count" class="count">0</span>
+        </div>
+        <nav id="project-list" class="project-list" aria-label="项目列表"></nav>
+      </aside>
+
+      <main class="main-pane">
+        <section id="empty-view" class="empty-view">
+          <div class="empty-symbol">+</div>
+          <h1>创建第一个图片项目</h1>
+          <button class="primary-button" type="button" data-open-project>新建项目</button>
+        </section>
+
+        <section id="project-view" class="project-view hidden">
+          <div class="project-header">
+            <div>
+              <div class="project-kicker" id="project-kicker"></div>
+              <h1 id="project-title"></h1>
+            </div>
+            <div class="project-actions">
+              <button id="new-job-button" class="primary-button" type="button"><span>+</span> 新建任务</button>
+            </div>
+          </div>
+
+          <div class="stats-strip" aria-label="项目状态">
+            <div><span>任务</span><strong id="stat-jobs">0</strong></div>
+            <div><span>待执行</span><strong id="stat-open">0</strong></div>
+            <div><span>结果</span><strong id="stat-assets">0</strong></div>
+            <div><span>待质检</span><strong id="stat-qc">0</strong></div>
+          </div>
+
+          <div class="tabs" role="tablist">
+            <button class="tab active" type="button" data-tab="studio" role="tab">Studio</button>
+            <button class="tab" type="button" data-tab="quality" role="tab">Quality</button>
+          </div>
+
+          <div id="studio-panel" class="tab-panel">
+            <section class="section-band">
+              <div class="section-heading">
+                <div><h2>执行队列</h2><span id="queue-summary"></span></div>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr><th>图位</th><th>任务</th><th>模式</th><th>状态</th><th>尝试</th><th>操作</th></tr>
+                  </thead>
+                  <tbody id="jobs-body"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="section-band assets-section">
+              <div class="section-heading">
+                <div><h2>结果与版本</h2><span id="asset-summary"></span></div>
+              </div>
+              <div id="asset-grid" class="asset-grid"></div>
+            </section>
+          </div>
+
+          <div id="quality-panel" class="tab-panel hidden">
+            <section class="section-band">
+              <div class="section-heading"><div><h2>质量队列</h2><span>技术检查与人工决策分离</span></div></div>
+              <div id="quality-list" class="quality-list"></div>
+            </section>
+          </div>
+        </section>
+      </main>
+
+      <aside id="inspector" class="inspector">
+        <div class="inspector-empty">选择一张结果图</div>
+      </aside>
+    </div>
+
+    <dialog id="project-dialog">
+      <form id="project-form" method="dialog" class="dialog-form">
+        <div class="dialog-header"><h2>新建图片项目</h2><button type="button" class="icon-button" data-close-dialog aria-label="关闭">×</button></div>
+        <label>项目名称<input name="name" required autocomplete="off" placeholder="ST102 Listing Refresh" /></label>
+        <div class="form-grid">
+          <label>模式<select name="project_mode"><option value="launch">待上市新品</option><option value="optimize">在售优化</option></select></label>
+          <label>站点<select name="marketplace"><option value="US">Amazon US</option><option value="CA">Amazon CA</option><option value="UK">Amazon UK</option></select></label>
+          <label>品牌<input name="brand" required autocomplete="off" placeholder="VLOGARA" /></label>
+          <label>SKU<input name="sku" required autocomplete="off" placeholder="ST102" /></label>
+        </div>
+        <div class="dialog-actions"><button type="button" class="secondary-button" data-close-dialog>取消</button><button class="primary-button" type="submit">创建项目</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="job-dialog" class="wide-dialog">
+      <form id="job-form" method="dialog" class="dialog-form">
+        <div class="dialog-header"><h2>新建图片任务</h2><button type="button" class="icon-button" data-close-dialog aria-label="关闭">×</button></div>
+        <div class="form-grid three">
+          <label>图位<input name="slot_key" required value="PT01" /></label>
+          <label>操作<select name="operation" id="operation-select"><option value="generate">生成</option><option value="edit">编辑父图</option></select></label>
+          <label>父版本<select name="parent_asset_id" id="parent-select"><option value="">无</option></select></label>
+        </div>
+        <fieldset class="mode-control">
+          <legend>执行方式</legend>
+          <label><input type="radio" name="execution_mode" value="codex_auto" checked /><span>Codex 自动</span></label>
+          <label><input type="radio" name="execution_mode" value="manual_import" /><span>手动回导</span></label>
+        </fieldset>
+        <label>Prompt<textarea name="prompt" required rows="5" placeholder="描述图片目标、构图和场景"></textarea></label>
+        <div class="form-grid three">
+          <label>Preserve<textarea name="invariants" rows="4" placeholder="每行一个不变量"></textarea></label>
+          <label>Avoid<textarea name="avoid" rows="4" placeholder="每行一个禁止项"></textarea></label>
+          <label>Acceptance<textarea name="acceptance" rows="4" placeholder="每行一个验收条件"></textarea></label>
+        </div>
+        <div class="dialog-actions"><button type="button" class="secondary-button" data-close-dialog>取消</button><button class="primary-button" type="submit">创建任务</button></div>
+      </form>
+    </dialog>
+
+    <input id="file-input" type="file" accept="image/png,image/jpeg,image/webp" hidden />
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script src="/app.js" defer></script>
+  </body>
+</html>

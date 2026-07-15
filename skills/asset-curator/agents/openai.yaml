@@ -1,0 +1,4 @@
+interface:
+  display_name: "Asset Curator"
+  short_description: "管理视觉资产来源、哈希、审批、上线、验证与退役全生命周期"
+  default_prompt: "Use -curator to register candidates and prepare an approval gate without promoting assets automatically."

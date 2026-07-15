@@ -68,6 +68,7 @@ install_skill competitor-traffic-battle
 install_skill amazon-image-planner-v2
 install_skill amazon-image-planner-v3
 install_skill product-asset-extractor
+install_skill asset-curator
 install_skill batch-asset-generator
 install_skill amazon-pricing-validator
 install_codex_skill web-access-codex
