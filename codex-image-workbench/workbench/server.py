@@ -87,6 +87,17 @@ class Handler(BaseHTTPRequestHandler):
             if optimize_match:
                 self.send_json(self.app.get_optimization_workspace(optimize_match.group(1)))
                 return
+            optimize_image = re.fullmatch(
+                r"/api/projects/([^/]+)/optimize/listing-images/([^/]+)/media", path
+            )
+            if optimize_image:
+                self.send_file(
+                    self.app.get_optimization_listing_image_path(
+                        optimize_image.group(1), optimize_image.group(2)
+                    ),
+                    cache=True,
+                )
+                return
             project_match = re.fullmatch(r"/api/projects/([^/]+)", path)
             if project_match:
                 self.send_json(self.app.get_project(project_match.group(1)))

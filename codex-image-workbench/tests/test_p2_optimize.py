@@ -226,6 +226,21 @@ class P2OptimizeTests(unittest.TestCase):
         with self.assertRaises(WorkbenchError):
             self.app.queue_optimization_contracts(self.project["project_id"])
 
+        complete_project = self.app.create_project(
+            {
+                "name": "P2 Listing Media Test",
+                "project_mode": "optimize",
+                "brand": "Halorient",
+                "sku": "PH204-MEDIA",
+                "marketplace": "AE",
+            }
+        )["project"]
+        self.app.import_optimization_intake(complete_project["project_id"], self.intake(True))
+        self.assertEqual(
+            self.current.resolve(),
+            self.app.get_optimization_listing_image_path(complete_project["project_id"], "main").resolve(),
+        )
+
     def test_release_records_publish_time_and_inconclusive_evaluation(self) -> None:
         project_id = self.project["project_id"]
         self.approve_diagnosis(True)

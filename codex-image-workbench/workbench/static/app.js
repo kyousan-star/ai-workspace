@@ -184,6 +184,18 @@ function renderOptimize() {
         <div><span>诊断准备</span><strong>${escapeHtml(statusLabel(readiness.diagnosis_status))}</strong></div>
         <div><span>改图准备</span><strong>${escapeHtml(statusLabel(readiness.generation_status))}</strong></div>
       </div>
+      <div class="listing-snapshot-grid">
+        ${intake.listing.images.map((image) => `
+          <figure class="listing-snapshot">
+            ${image.exists && image.readable_image
+              ? `<img src="/api/projects/${encodeURIComponent(state.projectId)}/optimize/listing-images/${encodeURIComponent(image.slot_key)}/media" alt="当前 Listing ${escapeHtml(image.slot_key)}" loading="lazy" />`
+              : `<div class="listing-snapshot-missing">缺少本地文件</div>`}
+            <figcaption>
+              <strong>${escapeHtml(image.slot_key)}</strong>
+              <span>${image.metadata?.width || "?"} × ${image.metadata?.height || "?"}</span>
+            </figcaption>
+          </figure>`).join("")}
+      </div>
       <div class="issue-layout">
         ${issueList("诊断阻断", readiness.diagnosis_blockers, "danger")}
         ${issueList("改图阻断", readiness.generation_blockers, "danger")}

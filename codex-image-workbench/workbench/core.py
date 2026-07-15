@@ -1330,6 +1330,22 @@ class Workbench:
             "evaluations": evaluations,
         }
 
+    def get_optimization_listing_image_path(self, project_id: str, slot_key: str) -> Path:
+        workspace = self.get_optimization_workspace(project_id)
+        if not workspace["intake"]:
+            raise WorkbenchError("optimization Listing snapshot has not been imported")
+        normalized_slot = str(slot_key).strip().upper()
+        image = next(
+            (
+                item for item in workspace["intake"]["listing"]["images"]
+                if item["slot_key"] == normalized_slot
+            ),
+            None,
+        )
+        if not image or not image["exists"] or not image["readable_image"]:
+            raise WorkbenchError(f"current Listing image is not available locally: {normalized_slot}")
+        return Path(image["path"])
+
     def save_optimization_diagnosis(
         self,
         project_id: str,

@@ -25,6 +25,8 @@ Status: `STRUCTURAL MVP PASS / PH204 DIAGNOSIS GATE PENDING`
   permits an explicit `inconclusive` decision.
 - Optimize Plan is available in the browser. CLI, HTTP, and eleven P2 MCP tools use
   the same SQLite state.
+- Optimize Plan renders the locally captured current Listing images with slot and
+  dimensions through a project-scoped media endpoint.
 
 ## PH204 Validation
 

@@ -167,6 +167,12 @@ td.prompt-cell { max-width: 330px; white-space: nowrap; overflow: hidden; text-o
 .coverage-metrics span, .coverage-metrics strong { display: block; }
 .coverage-metrics span { color: var(--muted); font-size: 10px; }
 .coverage-metrics strong { margin-top: 4px; font-size: 16px; overflow-wrap: anywhere; }
+.listing-snapshot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 180px)); gap: 8px; margin-top: 8px; }
+.listing-snapshot { margin: 0; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); overflow: hidden; }
+.listing-snapshot img, .listing-snapshot-missing { display: block; width: 100%; aspect-ratio: 1; object-fit: contain; background: #f8faf8; }
+.listing-snapshot-missing { display: grid; place-items: center; color: var(--muted); font-size: 10px; }
+.listing-snapshot figcaption { display: flex; justify-content: space-between; gap: 8px; padding: 7px 8px; font-size: 10px; }
+.listing-snapshot figcaption span { color: var(--muted); }
 .issue-layout { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
 .issue-group { border-left: 3px solid #98a29a; background: var(--surface); padding: 10px 12px; min-width: 0; }
 .issue-group > strong { display: block; font-size: 11px; margin-bottom: 7px; }
@@ -282,5 +288,6 @@ input:focus, select:focus, textarea:focus { border-color: var(--green); box-shad
   .coverage-metrics > div:nth-child(2n) { border-right: 0; }
   .coverage-metrics > div:nth-last-child(-n+2) { border-bottom: 0; }
   .issue-layout, .strategy-layout { grid-template-columns: 1fr; }
+  .listing-snapshot-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .issue-group li { grid-template-columns: 1fr; gap: 2px; }
 }
