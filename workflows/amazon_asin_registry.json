@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-07-15",
+  "description": "Amazon US 内容创作装备监控统一 ASIN 主清单。segments 定义唯一归属，tasks 定义各任务实际范围。",
+  "segments": [
+    {
+      "id": "own",
+      "label": "本品 OWN",
+      "role": "own",
+      "asins": [
+        "B0GY7Y6C63",
+        "B0GZNZ6ZKL"
+      ]
+    },
+    {
+      "id": "selfie_tripod",
+      "label": "Selfie Tripod / ST102 竞品",
+      "role": "competitor",
+      "asins": [
+        "B0DC3RW27T",
+        "B0BPM21DF1",
+        "B0DTHQKCRK",
+        "B0DLW5BMYF",
+        "B0CRDP2QH9",
+        "B0DVLXMTQG",
+        "B0DHTZJ23J",
+        "B0FP8F4FDG",
+        "B0F7XDXD69",
+        "B0F6Y6RXVN",
+        "B0FGD1HYD6",
+        "B0CRYTX9YX",
+        "B0FY61ZMVT",
+        "B0FB94JGT7",
+        "B0DPYNH1DZ",
+        "B0CQJVXT74",
+        "B0FF1HNT2T",
+        "B0DYDB3ZFV",
+        "B0BDZ27CGQ",
+        "B0GJ3W2WQN"
+      ]
+    },
+    {
+      "id": "vlogging_kit",
+      "label": "Vlogging Kit / VK101 竞品",
+      "role": "competitor",
+      "asins": [
+        "B0FKGXDX1P",
+        "B0FNCD19QZ",
+        "B0F8NCLBVG",
+        "B0FZWNLVX1",
+        "B0F9FD52N7",
+        "B0GD6D143Z",
+        "B0FJF7YXD9",
+        "B0F8NCBKPS",
+        "B0FQ2TD1Y6",
+        "B0GQLVKP6L",
+        "B0FPX2K174",
+        "B0F7LG33Z7",
+        "B0CHPQCJSC",
+        "B0FWRPHZ1H",
+        "B0GSF71XGY",
+        "B0CVHX2HCJ",
+        "B0GTRG9TDN",
+        "B0GG865SHL",
+        "B0CV64GBVS",
+        "B0FSDBZ34X"
+      ]
+    },
+    {
+      "id": "tracking",
+      "label": "Auto Face Tracking 子段",
+      "role": "competitor_watch",
+      "asins": [
+        "B0F1SDJC4Z",
+        "B0H1VXDMDP",
+        "B0GV3BQS8W",
+        "B0FQ9ZS2SM",
+        "B0FHBFX14C"
+      ]
+    },
+    {
+      "id": "gimbal_benchmark",
+      "label": "Gimbal 替代品基准",
+      "role": "benchmark",
+      "asins": [
+        "B07FSS4R16",
+        "B0GXW2BG8C"
+      ]
+    },
+    {
+      "id": "vlogging_kit_daily_only",
+      "label": "Vlogging Kit 每日价格核心池（周 Listing 范围外）",
+      "role": "competitor",
+      "asins": [
+        "B0DWJH4BHS",
+        "B0F5Q1JXBW",
+        "B0FN7Q7T67",
+        "B0FW4KL9RS",
+        "B0FVXYL73W",
+        "B0G6KNL22M",
+        "B0GDCQ234T",
+        "B0GBKYH7YX",
+        "B0GCF2Z74Y",
+        "B0FWQMCCLX",
+        "B0GL7L1Z9J",
+        "B0GGHR4393"
+      ]
+    }
+  ],
+  "tasks": {
+    "weekly_listing": {
+      "label": "49 ASIN Listing 周监控",
+      "segments": [
+        "own",
+        "selfie_tripod",
+        "vlogging_kit",
+        "tracking",
+        "gimbal_benchmark"
+      ]
+    },
+    "daily_price": {
+      "label": "Vlogging Kit 竞品价格日报",
+      "asins": [
+        "B0DWJH4BHS",
+        "B0F5Q1JXBW",
+        "B0FJF7YXD9",
+        "B0F8NCLBVG",
+        "B0FPX2K174",
+        "B0FN7Q7T67",
+        "B0F8NCBKPS",
+        "B0FW4KL9RS",
+        "B0FVXYL73W",
+        "B0G6KNL22M",
+        "B0GDCQ234T",
+        "B0GBKYH7YX",
+        "B0GCF2Z74Y",
+        "B0FWQMCCLX",
+        "B0GL7L1Z9J",
+        "B0GD6D143Z",
+        "B0GGHR4393"
+      ]
+    }
+  }
+}
