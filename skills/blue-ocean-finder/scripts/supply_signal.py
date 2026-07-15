@@ -33,7 +33,10 @@ import sys
 from collections import Counter, defaultdict
 from datetime import date, datetime
 
-# ── 内置形态词典（贴合手机内容创作装备；--form 可覆盖）──
+# ── 形态词典 ──
+# 单一事实源 = 监控盘 {data-dir}/spec_lexicon.json 的 "forms" 段（2026-07-15 收敛，
+# 与 release_trend_report.py / spec_survival.py / 邻接雷达共用）。下面内置版仅作
+# 该文件缺失时的降级备胎，不要在此维护新词。
 FORM_LEXICON = {
     "selfie_monitor 后摄监视屏": r"selfie monitor|monitor screen|rear (camera )?screen|back camera monitor|vlog monitor",
     "face_tracking 自动追踪": r"face tracking|auto track|ai track|follow(ing)? track|gesture",
@@ -59,6 +62,14 @@ def load_data(data_dir):
     if not os.path.exists(seen_path):
         sys.exit(f"找不到 {seen_path}")
     seen = json.load(open(seen_path, encoding="utf-8"))
+
+    # 新增类目首跑会把整榜灌成"首见"（README：只建基线不算上新），必须排除
+    bootstrap = {}
+    cfg_path = os.path.join(data_dir, "release_report_config.json")
+    if os.path.exists(cfg_path):
+        bootstrap = json.load(open(cfg_path, encoding="utf-8")).get("category_bootstrap_dates", {})
+    seen = {a: v for a, v in seen.items()
+            if bootstrap.get(v.get("category", "")) != v.get("first_seen")}
 
     xlsxs = glob.glob(os.path.join(data_dir, "*.xlsx"))
     dated = []
@@ -171,7 +182,12 @@ def main():
     if args.form.strip():
         forms = {kw.strip(): re.escape(kw.strip()) for kw in args.form.split(",") if kw.strip()}
     else:
-        forms = FORM_LEXICON
+        lexicon_path = os.path.join(args.data_dir, "spec_lexicon.json")
+        if os.path.exists(lexicon_path):
+            forms = json.load(open(lexicon_path, encoding="utf-8")).get("forms", FORM_LEXICON)
+        else:
+            print(f"⚠️ 未找到 {lexicon_path}，使用内置降级词典（可能滞后于单一事实源）\n")
+            forms = FORM_LEXICON
 
     results = []
     for name, pat in forms.items():
