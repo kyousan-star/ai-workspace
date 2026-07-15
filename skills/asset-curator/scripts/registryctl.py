@@ -17,6 +17,7 @@ from typing import Any, Iterator
 
 ALLOWED = {"raw", "candidate", "approved", "published", "validated", "rejected", "retired"}
 PROMOTED = {"approved", "published", "validated", "retired"}
+LINEAGE_ONLY = {"raw", "rejected"}
 REQUIRED = {"asset_id", "kind", "status", "source_path", "sha256"}
 TRANSITIONS = {
     "candidate": {"approved", "rejected", "retired"},
@@ -151,7 +152,11 @@ def register_candidate(path: Path, manifest_path: Path) -> dict[str, Any]:
         assets = data["assets"]
         existing = next((asset for asset in assets if asset["asset_id"] == manifest["asset_id"]), None)
         if existing:
-            if existing["sha256"] == actual_hash and existing["source_path"] == str(source):
+            if (
+                existing["sha256"] == actual_hash
+                and existing["source_path"] == str(source)
+                and existing["status"] == "candidate"
+            ):
                 return {"created": False, "asset": existing}
             raise RegistryError(f"asset_id conflict: {manifest['asset_id']}")
         parent = manifest.get("parent_asset_id")
@@ -162,6 +167,60 @@ def register_candidate(path: Path, manifest_path: Path) -> dict[str, Any]:
         errors = validate(data)
         if errors:
             raise RegistryError("candidate rejected: " + "; ".join(errors))
+        atomic_write(path, data)
+    return {"created": True, "asset": manifest}
+
+
+def register_lineage(path: Path, manifest_path: Path) -> dict[str, Any]:
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RegistryError(f"cannot read manifest: {exc}") from exc
+    if not isinstance(manifest, dict):
+        raise RegistryError("manifest must be an object")
+    status = manifest.get("status")
+    if status not in LINEAGE_ONLY:
+        raise RegistryError(
+            "lineage registration status must be one of: " + ", ".join(sorted(LINEAGE_ONLY))
+        )
+    if status == "rejected" and not str(manifest.get("notes", "")).strip():
+        raise RegistryError("rejected lineage assets require notes")
+    missing = sorted(REQUIRED - set(manifest))
+    if missing:
+        raise RegistryError(f"manifest missing: {', '.join(missing)}")
+    source = Path(str(manifest["source_path"])).expanduser().resolve()
+    if not source.is_file():
+        raise RegistryError(f"source file missing: {source}")
+    actual_hash = sha256_file(source)
+    if actual_hash != manifest["sha256"]:
+        raise RegistryError("manifest sha256 does not match source file")
+    manifest["source_path"] = str(source)
+    manifest["approval_required"] = False
+    manifest.pop("approval", None)
+
+    with registry_lock(path):
+        data = load_registry(path)
+        errors = validate(data)
+        if errors:
+            raise RegistryError("registry invalid before write: " + "; ".join(errors))
+        assets = data["assets"]
+        existing = next((asset for asset in assets if asset["asset_id"] == manifest["asset_id"]), None)
+        if existing:
+            if (
+                existing["sha256"] == actual_hash
+                and existing["source_path"] == str(source)
+                and existing["status"] == status
+            ):
+                return {"created": False, "asset": existing}
+            raise RegistryError(f"asset_id conflict: {manifest['asset_id']}")
+        parent = manifest.get("parent_asset_id")
+        if parent and not any(asset["asset_id"] == parent for asset in assets):
+            raise RegistryError(f"parent asset is not registered: {parent}")
+        assets.append(manifest)
+        data["updated_at"] = now_date()
+        errors = validate(data)
+        if errors:
+            raise RegistryError("lineage asset rejected: " + "; ".join(errors))
         atomic_write(path, data)
     return {"created": True, "asset": manifest}
 
@@ -262,6 +321,9 @@ def build_parser() -> argparse.ArgumentParser:
     register_parser = subparsers.add_parser("register-candidate")
     register_parser.add_argument("--manifest", type=Path, required=True)
 
+    lineage_parser = subparsers.add_parser("register-lineage")
+    lineage_parser.add_argument("--manifest", type=Path, required=True)
+
     promote_parser = subparsers.add_parser("promote")
     promote_parser.add_argument("--asset-id", required=True)
     promote_parser.add_argument("--status", required=True)
@@ -286,6 +348,8 @@ def main(argv: list[str] | None = None) -> int:
             result = {"ok": True, "assets": len(data["assets"]), "registry": str(registry)}
         elif args.command == "register-candidate":
             result = register_candidate(registry, args.manifest.expanduser().resolve())
+        elif args.command == "register-lineage":
+            result = register_lineage(registry, args.manifest.expanduser().resolve())
         elif args.command == "promote":
             result = promote(
                 registry,

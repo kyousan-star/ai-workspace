@@ -69,6 +69,41 @@ class RegistryCtlTests(unittest.TestCase):
         with self.assertRaises(registryctl.RegistryError):
             registryctl.register_candidate(self.registry, self.manifest)
 
+    def test_rejected_lineage_parent_can_be_followed_by_candidate(self):
+        parent = json.loads(self.manifest.read_text(encoding="utf-8"))
+        parent["status"] = "rejected"
+        parent["notes"] = "Failed manual QC; retained for version lineage only."
+        self.manifest.write_text(json.dumps(parent), encoding="utf-8")
+        registered_parent = registryctl.register_lineage(self.registry, self.manifest)
+        self.assertTrue(registered_parent["created"])
+
+        child_source = self.root / "child.png"
+        child_source.write_bytes(b"candidate-fixture")
+        child_manifest = self.root / "child-manifest.json"
+        child_manifest.write_text(
+            json.dumps(
+                {
+                    "asset_id": "wb-test-asset-002",
+                    "kind": "listing-image",
+                    "status": "candidate",
+                    "source_path": str(child_source),
+                    "sha256": registryctl.sha256_file(child_source),
+                    "parent_asset_id": "wb-test-asset-001",
+                }
+            ),
+            encoding="utf-8",
+        )
+        registered_child = registryctl.register_candidate(self.registry, child_manifest)
+        self.assertTrue(registered_child["created"])
+        self.assertEqual(
+            "wb-test-asset-001", registered_child["asset"]["parent_asset_id"]
+        )
+        self.assertEqual([], registryctl.validate(registryctl.load_registry(self.registry), True))
+
+    def test_lineage_registration_rejects_candidate_status(self):
+        with self.assertRaises(registryctl.RegistryError):
+            registryctl.register_lineage(self.registry, self.manifest)
+
 
 if __name__ == "__main__":
     unittest.main()

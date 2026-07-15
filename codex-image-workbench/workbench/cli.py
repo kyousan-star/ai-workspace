@@ -83,6 +83,11 @@ def build_parser() -> argparse.ArgumentParser:
     candidate = sub.add_parser("register-candidate")
     candidate.add_argument("--asset", required=True)
 
+    lineage = sub.add_parser("register-lineage")
+    lineage.add_argument("--asset", required=True)
+    lineage.add_argument("--status", choices=["raw", "rejected"], required=True)
+    lineage.add_argument("--notes", required=True)
+
     asset = sub.add_parser("show-asset")
     asset.add_argument("--asset", required=True)
 
@@ -204,6 +209,8 @@ def main(argv: list[str] | None = None) -> int:
             result = app.evaluate_asset(args.asset, args.status, args.notes)
         elif args.command == "register-candidate":
             result = app.nominate_candidate(args.asset)
+        elif args.command == "register-lineage":
+            result = app.register_lineage_asset(args.asset, args.status, args.notes, actor="cli")
         elif args.command == "show-asset":
             result = app.get_asset(args.asset)
         elif args.command == "launch":

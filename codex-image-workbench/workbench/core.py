@@ -670,6 +670,77 @@ class Workbench:
             self.event(conn, "asset", asset_id, "asset.candidate_registered", actor, {"registry": str(self.registry_path)})
         return self.get_asset(asset_id)
 
+    def register_lineage_asset(
+        self,
+        asset_id: str,
+        status: str,
+        notes: str,
+        actor: str = "user",
+    ) -> dict[str, Any]:
+        if status not in {"raw", "rejected"}:
+            raise WorkbenchError("lineage status must be raw or rejected")
+        if status == "rejected" and not notes.strip():
+            raise WorkbenchError("rejected lineage assets require notes")
+        asset = self.get_asset(asset_id)
+        if asset["registry_status"] != "transient":
+            if asset["registry_status"] == status:
+                return asset
+            raise WorkbenchError(
+                f"asset already has registry status: {asset['registry_status']}"
+            )
+        contract = asset["contract"]
+        manifest = {
+            "asset_id": asset["asset_id"],
+            "kind": contract.get("kind", "listing-image"),
+            "status": status,
+            "source_path": asset["source_path"],
+            "sha256": asset["sha256"],
+            "brand": contract.get("brand"),
+            "sku": contract.get("sku"),
+            "parent_asset_id": asset.get("parent_asset_id"),
+            "dimensions": f"{asset['width']}x{asset['height']}",
+            "approval_required": False,
+            "notes": notes.strip(),
+        }
+        if not self.registryctl_path.is_file():
+            raise WorkbenchError(f"registryctl not found: {self.registryctl_path}")
+        self.runtime.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".json", dir=self.runtime, encoding="utf-8", delete=False
+        ) as handle:
+            json.dump(manifest, handle, ensure_ascii=False, indent=2)
+            manifest_path = Path(handle.name)
+        try:
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(self.registryctl_path),
+                    "--registry",
+                    str(self.registry_path),
+                    "register-lineage",
+                    "--manifest",
+                    str(manifest_path),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        finally:
+            manifest_path.unlink(missing_ok=True)
+        if completed.returncode != 0:
+            raise WorkbenchError(completed.stderr.strip() or completed.stdout.strip())
+        with self.connect() as conn:
+            conn.execute("UPDATE assets SET registry_status = ? WHERE asset_id = ?", (status, asset_id))
+            self.event(
+                conn,
+                "asset",
+                asset_id,
+                "asset.lineage_registered",
+                actor,
+                {"registry": str(self.registry_path), "status": status, "notes": notes.strip()},
+            )
+        return self.get_asset(asset_id)
+
     def registry_check(self) -> dict[str, Any]:
         completed = subprocess.run(
             [

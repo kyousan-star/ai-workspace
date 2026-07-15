@@ -104,6 +104,33 @@ class WorkbenchCoreTests(unittest.TestCase):
         with self.assertRaises(WorkbenchError):
             self.app.evaluate_asset(asset["asset_id"], "passed", "should fail")
 
+    def test_rejected_intermediate_keeps_lineage_for_candidate_successor(self):
+        first_job, _ = self.app.create_job(self.project["project_id"], self.job_payload())
+        first_source = make_png(Path(self.temp.name) / "first.png", 64, 64)
+        first = self.app.import_result(first_job["job_id"], first_source)
+        first = self.app.evaluate_asset(first["asset_id"], "needs_review", "Geometry mismatch")
+        first = self.app.register_lineage_asset(
+            first["asset_id"],
+            "rejected",
+            "Superseded after manual QC; retained for lineage only.",
+        )
+        self.assertEqual("rejected", first["registry_status"])
+
+        second_job, _ = self.app.create_job(
+            self.project["project_id"],
+            self.job_payload(parent=first["asset_id"], operation="edit"),
+        )
+        second_source = make_png(Path(self.temp.name) / "second.png", 64, 64, (210, 210, 210))
+        second = self.app.import_result(second_job["job_id"], second_source)
+        second = self.app.evaluate_asset(second["asset_id"], "passed", "Geometry corrected")
+        second = self.app.nominate_candidate(second["asset_id"])
+        self.assertEqual("candidate", second["registry_status"])
+
+        registry = json.loads(self.registry.read_text(encoding="utf-8"))
+        statuses = {asset["asset_id"]: asset["status"] for asset in registry["assets"]}
+        self.assertEqual("rejected", statuses[first["asset_id"]])
+        self.assertEqual("candidate", statuses[second["asset_id"]])
+
     def test_auto_job_lease_recovery_and_completion(self):
         payload = self.job_payload("codex_auto")
         job, _ = self.app.create_job(self.project["project_id"], payload)
