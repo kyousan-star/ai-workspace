@@ -176,7 +176,7 @@ staleness_risk: high
 
 ### Dimension 5：Risk & Compliance（权重 10%）
 
-**词表依据（强制读取）**：`../amazon-listing-v2/references/sensitive-claims.md`（与 amazon-listing-v2 共享的三档词表：A 无条件删除 / B 证据后置 / C 绝对化降级，含降级映射和摄影配件类目兼容性例外）。凭记忆扫词 = 违规。
+**词表依据（强制读取）**：`../amazon-listing-v2/references/sensitive-claims.md`（与 amazon-listing-v2 共享的三档词表：A 无条件删除 / B 证据后置 / C 绝对化降级，含降级映射和摄影配件类目兼容性例外）。凭记忆扫词 = 违规。报告中输出词表 last_verified 日期，超 90 天标黄提醒「核对敏感词词表」；被审 listing 品类不在词表覆盖范围（成人用品等强监管品类）→ 本维度结论标注"词表不适用，需品类专项核查"。
 
 **审计项目**（按词表逐档对照，覆盖 Title、Item Highlights、Bullets、Description、ST）：
 - A 层：排名背书、促销时效、站外导流、竞品品牌名/ASIN

@@ -1,8 +1,16 @@
 # Amazon Listing 敏感词分层词表（skill 部署版）
 
+```
+last_verified: 2026-07-14（Codex 初次整理；A层未对照后台实测，B层锚定FDA/EPA/FTC法规原文）
+覆盖品类: 一般消费品（摄影/Vlogging配件为主）。成人用品（H&SO）、食品、药械、儿童玩具等
+          强监管品类不在覆盖范围——进入前必须先跑该品类专项政策核查，不得直接套用本表
+过期规则: 距 last_verified 超过 90 天 → skill 审计输出中标黄提醒「词表待核对」
+核对触发: 用户说「核对敏感词词表」→ 执行文末〈季度核对协议〉，核完更新本戳
+```
+
 > **同步源**：本文件的上游是 `~/Documents/跨境业务/跨境知识库/playbooks/Amazon Listing敏感词前置拦截SOP.md`（Codex 整理，2026-07-14）。
 > 更新纪律：SOP 改动后同步本文件；被 Amazon 驳回/抑制的实战命中词**回填两处**。
-> 边界：这不是 Amazon 官方完整禁词表——很多词是语境触发。按三档处理，拿不准时从严。
+> 边界与定位：这不是 Amazon 官方完整禁词表——很多词是语境触发，本表只是**第一道粗筛**。真正权威是 Seller Central 类目模板 + 实战驳回实录；词表没收录的声明也要走 B 层"证据后置"逻辑兜底。拿不准时从严。
 > 共享方：`amazon-listing-v2`（撰写时拦截）、`listing-rufus-cosmo-audit`（审计 Dimension 5 对照）。
 
 ## 三档处理规则
@@ -49,6 +57,7 @@ ASIN, B0..., better than [competitor brand], replacement for [competitor brand]
 - **可写**：事实准确的设备兼容声明，且属于本类目常规表达 —— `compatible with iPhone 15/14/13`、`fits GoPro Hero 12/11`、`for DJI Osmo Mobile`。这是三脚架/Vlogging Kit 品类的刚需流量词，误删会直接伤流量。
 - **写法**：用 `compatible with / fits / for`，具体到型号；**不用** `better than`、`replacement for`、`same as`。
 - **不可写**：兼容性未经实测验证；或把设备品牌放进品牌字段、用作商标性使用。
+- **商标性技术名词单列（本品类高频风险面）**：`MagSafe`、`Lightning`、`GoPro`、`DJI OSMO`、`Bluetooth` 等是注册商标，只能做指示性合理使用——写 `compatible with MagSafe chargers`，不写 `MagSafe tripod`（把商标当自己产品属性）；不用对方 logo；Bluetooth 商标使用理论上需 SIG 认证资质。这块各品牌规范不同，首次使用某商标词前查该品牌官方 trademark guideline，命中即在审计 ③ 档提示人工确认。
 - 事实库中兼容型号必须有来源（实测/规格书），否则按"需确认"处理，不进正式稿。
 
 ---
@@ -140,9 +149,15 @@ no side effects, risk-free, indestructible, unbreakable, never, always,
 - 竞品品牌、ASIN、医疗功效、促销、外链、联系方式在 ST 中同样违规。
 - 成稿后对 ST 单独复扫一次。
 
-## 实战回流
+## 维护机制（四道防线，权重从高到低）
 
-Listing 被 Amazon 驳回、抑制或强制改写时：把命中词 + 触发语境（品类、字段、上下文句子）回填到本文件末尾的「实战黑名单」区，并同步上游 SOP。记录"词 + 语境"，不只记词（如 antimicrobial 在普通布料 listing 高风险，在有 EPA 路径的产品可能可写）。
+1. **实战回流（权重最高）**：Listing 被 Amazon 驳回、抑制或强制改写时，把命中词 + 触发语境（品类、字段、上下文句子）回填文末「实战黑名单」，并同步上游 SOP。记录"词 + 语境"，不只记词（如 antimicrobial 在普通布料 listing 高风险，在有 EPA 路径的产品可能可写）。这是唯一反映真实执法的信号。
+2. **过期提醒**：skill 每次审计输出本表 last_verified；超 90 天标黄，提示用户触发核对。
+3. **季度核对协议**（触发词「核对敏感词词表」，会话触发，不设自动调度）：
+   - A 层 + 平台执行口径：查 Seller Central News/论坛官方公告、Restricted Products 页、Search Terms 规则页、在售类目模板——用 title-policy pack 的 L1/L2/U 纪律（官方原文才算确认，三方说法挂限定词）
+   - B 层：FDA/EPA/FTC 仅在涉及新品类或有已知修法时核，不必每季度全查
+   - 核完更新头部 last_verified 戳 + 变更记录，同步上游 SOP
+4. **新品类硬门**：进入头部「覆盖品类」之外的品类（成人用品、食品、药械、儿童等）→ 第一个 listing 前先做该品类专项政策核查（受限词 + 图文规则 + 类目模板），产出单独词表或本表扩展区，不得裸套本表。
 
 ### 实战黑名单（被驳回/抑制实录，持续回填）
 

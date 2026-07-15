@@ -44,7 +44,9 @@ staleness_risk: high
 
 - Listing 中禁止使用 Emoji 及 Amazon 不允许的特殊符号。
 - **敏感词拦截（强制）**：执行本 skill 时必须读取 `references/sensitive-claims.md`（A 无条件删除 / B 证据后置 / C 绝对化降级 三档词表），在**写作前**（Step 1 事实库判定 B/C 层声明）和**成稿后**（Step 6.3 三档审计）各执行一次扫描。扫描范围：Title、Bullets、Description、Search Terms、QA Answer Bank、A+ 文案草稿。凭记忆扫词 = 违规，必须现场读词表。
-- 摄影/Vlogging 配件类目注意：`compatible with [设备品牌/型号]` 是刚需流量词，按词表中的兼容性例外规则处理，不要一律删除。
+- 摄影/Vlogging 配件类目注意：`compatible with [设备品牌/型号]` 是刚需流量词，按词表中的兼容性例外规则处理，不要一律删除；商标性技术名词（MagSafe/Lightning/GoPro 等）按词表商标条款做指示性使用。
+- **新品类硬门**：产品品类不在词表头部「覆盖品类」范围内（成人用品、食品、药械、儿童等强监管品类）→ 停下告知用户需先做该品类专项政策核查，不得裸套词表出正式稿。
+- **词表时效**：读词表时检查头部 last_verified，距今超 90 天 → 在 Audit 中标黄提醒「词表待核对，可说『核对敏感词词表』触发核查」，但不阻塞本次输出。
 - 禁止输出未经证实的效果提升百分比。
 - 对 Amazon 政策、类目规范、后台字符限制存在不确定时，必须标注"需以当前 Seller Central 类目模板为准"。
 
@@ -400,8 +402,10 @@ staleness_risk: high
 | 检查点 | 说明 |
 |--------|------|
 | 类目字符限制 / HTML / 合规字段 | 以当前 Seller Central 类目模板为准 |
-| 兼容性表达 | compatible with [brand] 已按品类例外规则处理，商标风险需人工确认 |
+| 兼容性表达 | compatible with [brand] 已按品类例外规则处理；商标性名词（MagSafe/GoPro 等）指示性使用，需人工确认 |
 | Search Terms | 已单独复扫，无正文删除词转移 |
+| 词表状态 | 输出词表 last_verified 日期；超 90 天标黄提醒触发「核对敏感词词表」 |
+| 品类覆盖 | 本品类是否在词表覆盖范围内；不在 → 已按新品类硬门停下 |
 
 附加检查（并入 ① ②）：促销/价格/物流/联系方式/外链、不支持的 HTML 或特殊符号、未证实认证/测试数据/质保/兼容性。
 
