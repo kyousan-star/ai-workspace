@@ -1,0 +1,15 @@
+{
+  "slot_key": "P0-HANDOFF",
+  "operation": "generate",
+  "execution_mode": "codex_auto",
+  "prompt": "Cross-session lease takeover validation. Do not generate an image.",
+  "invariants": ["No generation required"],
+  "avoid": [],
+  "acceptance": ["A fresh Codex session can reclaim the expired lease"],
+  "expected_output": {
+    "format": "png",
+    "aspect_ratio": "1:1"
+  },
+  "max_attempts": 3,
+  "idempotency_key": "p0-cross-session-20260715"
+}

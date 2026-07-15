@@ -16,6 +16,23 @@ Local Amazon image production and optimization workbench.
 P0 supports an active, resumable Codex worker. It does not claim an official
 always-on Codex listener or unattended background generation.
 
+## Codex Plugin
+
+The thin plugin adapter lives at:
+
+```text
+/Users/lihuan/ai-workspace/plugins/codex-image-workbench
+```
+
+It contains only the plugin manifest and MCP launcher. Workbench code remains in
+this directory, while shared Skills remain under `/Users/lihuan/ai-workspace/skills`.
+The repository Marketplace is registered as `personal`, and the plugin is
+installed as `codex-image-workbench@personal`.
+
+New Codex tasks load the stdio MCP tools. Write-capable MCP calls require an
+interactive approval; non-interactive `codex exec` is not treated as an
+unattended worker.
+
 ## Run
 
 ```bash
@@ -41,3 +58,11 @@ manual QC before candidate registration is enabled.
 ```bash
 python3 -m unittest discover -s tests -v
 ```
+
+Run the deterministic 20-job queue and state-machine soak separately:
+
+```bash
+python3 scripts/run_p0_soak.py --count 20 --workers 4
+```
+
+This soak does not call ImageGen and must not be used as image-quality evidence.

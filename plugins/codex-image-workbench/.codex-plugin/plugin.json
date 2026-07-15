@@ -1,0 +1,26 @@
+{
+  "name": "codex-image-workbench",
+  "version": "0.1.0+codex.20260715062128",
+  "description": "Local Amazon image planning, generation queue, versioning, and quality workbench.",
+  "author": {
+    "name": "Lihuan AI Workspace"
+  },
+  "interface": {
+    "displayName": "Codex Image Workbench",
+    "shortDescription": "Run resumable Amazon image workflows.",
+    "longDescription": "Connect Codex to the local image workbench queue, shared asset versions, technical checks, manual QC, and Registry candidate gates.",
+    "developerName": "Lihuan AI Workspace",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Show the current image workbench queue.",
+      "Claim the next image generation job.",
+      "Open the local image workbench."
+    ],
+    "brandColor": "#16734B"
+  },
+  "mcpServers": "./.mcp.json"
+}

@@ -2,7 +2,7 @@
 
 > 文档版本：1.2
 > 日期：2026-07-14，最后更新 2026-07-15
-> 状态：P-1 Gate 有限制通过；P0 核心垂直闭环已通过，集成收尾进行中
+> 状态：P-1 Gate 有限制通过；P0 `PASS WITH LIMITS`，可进入 P1 新品 MVP
 > 范围：待上市新品视觉生产 + 已上市产品图片持续优化
 
 ### V1.2 修订摘要
@@ -776,7 +776,7 @@ Gate 结果：`PASS WITH LIMITS`。
 
 #### P0 核心实测结论（2026-07-15）
 
-状态：`CORE PASS / INTEGRATION IN PROGRESS`。
+状态：`PASS WITH LIMITS / READY FOR P1`。
 
 - 已实现本地 Python 服务、SQLite 正式 schema、CLI、Studio/Quality 工作台和双执行模式；
 - `codex_auto` 与 `manual_import` 共用 GenerationJob、Asset、父子版本、事件和 QC 模型；
@@ -784,11 +784,14 @@ Gate 结果：`PASS WITH LIMITS`。
 - 手动模式已完成生成包导出、图片回导、SHA-256、技术检查、人工 QC 和候选按钮解锁实测；
 - `registryctl` 已支持带文件锁和原子替换的 candidate 登记、审批证据晋升、哈希校验和对账；
 - 中央 Registry 只读检查通过，共 30 条资产；浏览器验收未写入中央 Registry；
-- 7 项自动化测试通过，覆盖 lease 恢复、幂等、技术 Gate、QC Gate、父子版本、Registry 晋升和 HTTP API；
+- 8 项自动化测试通过，覆盖 lease 恢复、幂等、技术 Gate、QC Gate、父子版本、Registry 晋升、HTTP API 和真实 stdio MCP 会话；
 - 1280 x 720 与 390 x 844 浏览器实测通过，前端控制台 0 error、0 warning；
 - 本地服务当前运行于 `http://127.0.0.1:8765`。
+- 薄插件已通过仓库 Marketplace 安装，Codex 状态为 `installed, enabled`；插件不复制业务源码或 Skill；
+- 新的独立 Codex 进程已把过期任务从 attempt 1 接管为 attempt 2，并以独立 Worker 关闭测试任务；
+- 20 任务状态机 soak 通过：10 个生成合同、10 个父图编辑合同、4 个 Worker、1 次 lease 恢复，20 个技术检查和 QC 均通过。
 
-P0 尚未关闭的集成项：Codex 插件清单与安装封装、另一个真实 Codex 任务的跨任务接管、15-30 次长负载 soak test。当前自动等级仍是 `interactive_resumable`，不得描述为无人值守后台。
+P0 可以关闭并进入 P1。限制项必须保留：本轮 20 任务 soak 使用确定性 PNG fixture，未调用 ImageGen，因此不能证明模型上下文容量或图片质量稳定性；非交互 `codex exec` 会取消需要用户批准的 MCP 写工具。真实 15-30 次 ImageGen 长负载测试和 Codex Desktop 交互式 MCP 批准验证进入生产加固。当前自动等级仍是 `interactive_resumable`，不得描述为无人值守后台。
 
 ### P1：新品 MVP，增加 5-8 个工作日
 

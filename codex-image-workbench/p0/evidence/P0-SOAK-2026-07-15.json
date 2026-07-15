@@ -1,0 +1,63 @@
+{
+  "schema_version": "p0-soak.1",
+  "result": "PASS",
+  "scope": "queue-and-state-machine-only",
+  "imagegen_calls": 0,
+  "limitations": [
+    "Uses deterministic PNG fixtures, not Codex ImageGen.",
+    "Does not measure model context capacity or image quality drift."
+  ],
+  "jobs": {
+    "jobs": 20,
+    "succeeded": 20,
+    "attempts": 21
+  },
+  "assets": {
+    "assets": 20,
+    "technical_passed": 20,
+    "qc_passed": 20
+  },
+  "operations": {
+    "generate": 10,
+    "edit": 10
+  },
+  "workers": [
+    {
+      "worker_id": "p0-soak-worker-1",
+      "first_seen_at": "2026-07-15T06:29:08.142+00:00",
+      "last_seen_at": "2026-07-15T06:29:08.225+00:00",
+      "claimed_count": 5,
+      "completed_count": 4,
+      "failed_count": 0
+    },
+    {
+      "worker_id": "p0-soak-worker-2",
+      "first_seen_at": "2026-07-15T06:29:08.144+00:00",
+      "last_seen_at": "2026-07-15T06:29:08.230+00:00",
+      "claimed_count": 6,
+      "completed_count": 6,
+      "failed_count": 0
+    },
+    {
+      "worker_id": "p0-soak-worker-3",
+      "first_seen_at": "2026-07-15T06:29:08.156+00:00",
+      "last_seen_at": "2026-07-15T06:29:08.235+00:00",
+      "claimed_count": 5,
+      "completed_count": 5,
+      "failed_count": 0
+    },
+    {
+      "worker_id": "p0-soak-worker-4",
+      "first_seen_at": "2026-07-15T06:29:08.161+00:00",
+      "last_seen_at": "2026-07-15T06:29:08.240+00:00",
+      "claimed_count": 5,
+      "completed_count": 5,
+      "failed_count": 0
+    }
+  ],
+  "worker_count": 4,
+  "expired_lease_recoveries": 1,
+  "elapsed_seconds": 0.1092,
+  "median_task_seconds": 0.0048,
+  "max_task_seconds": 0.0087
+}

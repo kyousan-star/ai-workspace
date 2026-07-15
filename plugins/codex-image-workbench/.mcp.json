@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "codex-image-workbench": {
+      "command": "python3",
+      "args": ["-m", "workbench.mcp_server"],
+      "cwd": "/Users/lihuan/ai-workspace/codex-image-workbench",
+      "env": {
+        "PYTHONUNBUFFERED": "1"
+      }
+    }
+  }
+}
