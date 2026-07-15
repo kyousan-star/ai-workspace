@@ -1,0 +1,30 @@
+{
+  "project_id": "p1-smoke",
+  "brand": "VLOGARA",
+  "sku": "P1-DEMO",
+  "kind": "listing-image",
+  "slot": "PT01",
+  "operation": "generate",
+  "prompt": "Create a clean square studio product photograph of a plain white ceramic planter on a light gray seamless background. Centered composition, soft realistic shadow, no text, no logo, no watermark.",
+  "references": [],
+  "invariants": [
+    "one planter only",
+    "plain white ceramic finish",
+    "square composition"
+  ],
+  "avoid": [
+    "text",
+    "logo",
+    "watermark",
+    "extra objects"
+  ],
+  "expected_output": {
+    "format": "png",
+    "aspect_ratio": "1:1"
+  },
+  "acceptance": [
+    "exactly one planter is visible",
+    "background is light gray",
+    "no text or logo is present"
+  ]
+}

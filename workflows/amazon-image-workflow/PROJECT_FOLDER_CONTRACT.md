@@ -41,7 +41,7 @@ ai_image_workflow/
 - `current_listing_images/`
 - `brand_assets/`
 
-`brand_assets/` 若与 `visual-lab/asset-library/{product-line}/brand-style.md` 已有内容重复，应指向asset-library而非重复存放（见阶段4.5）。
+`brand_assets/` 中已批准的品牌资料应引用 `visual-lab/brand-library/{brand}/`，SKU 事实和参考图引用 `visual-lab/product-library/{product-line}/skus/{sku}/`。旧 `asset-library` 仅作历史只读兼容（见阶段4.5）。
 
 ## 01_WORKFLOW
 
@@ -123,4 +123,3 @@ ai_image_workflow/
 - `lessons_learned.md`
 - `prompt_library.md`
 - `failure_patterns.md`
-
