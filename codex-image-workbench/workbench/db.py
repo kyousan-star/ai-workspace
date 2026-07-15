@@ -4,7 +4,7 @@ import sqlite3
 from pathlib import Path
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 def connect(path: Path) -> sqlite3.Connection:
@@ -208,6 +208,128 @@ def initialize(path: Path, workspace: Path) -> None:
                 FOREIGN KEY(job_id) REFERENCES jobs(job_id)
             );
 
+            CREATE TABLE IF NOT EXISTS listing_versions (
+                listing_version_id TEXT PRIMARY KEY,
+                project_id TEXT NOT NULL,
+                version INTEGER NOT NULL,
+                status TEXT NOT NULL CHECK(status IN ('current', 'superseded')),
+                schema_version TEXT NOT NULL,
+                source_type TEXT NOT NULL,
+                captured_at TEXT NOT NULL,
+                intake_json TEXT NOT NULL,
+                readiness_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(project_id, version),
+                FOREIGN KEY(project_id) REFERENCES projects(project_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS optimization_diagnostics (
+                diagnostic_id TEXT PRIMARY KEY,
+                project_id TEXT NOT NULL,
+                listing_version_id TEXT NOT NULL,
+                version INTEGER NOT NULL,
+                status TEXT NOT NULL CHECK(status IN (
+                    'draft', 'awaiting_gate', 'approved', 'changes_requested', 'superseded'
+                )),
+                diagnostic_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(project_id, version),
+                FOREIGN KEY(project_id) REFERENCES projects(project_id),
+                FOREIGN KEY(listing_version_id) REFERENCES listing_versions(listing_version_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS optimization_gates (
+                project_id TEXT PRIMARY KEY,
+                status TEXT NOT NULL CHECK(status IN ('pending', 'awaiting', 'approved', 'changes_requested')),
+                decision_json TEXT NOT NULL,
+                decided_by TEXT,
+                decided_at TEXT,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY(project_id) REFERENCES projects(project_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS optimization_contracts (
+                optimization_contract_id TEXT PRIMARY KEY,
+                project_id TEXT NOT NULL,
+                diagnostic_id TEXT NOT NULL,
+                challenge_key TEXT NOT NULL,
+                slot_key TEXT NOT NULL,
+                version INTEGER NOT NULL,
+                status TEXT NOT NULL CHECK(status IN ('blocked', 'ready', 'queued', 'superseded')),
+                contract_json TEXT NOT NULL,
+                job_id TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(project_id, challenge_key, version),
+                FOREIGN KEY(project_id) REFERENCES projects(project_id),
+                FOREIGN KEY(diagnostic_id) REFERENCES optimization_diagnostics(diagnostic_id),
+                FOREIGN KEY(job_id) REFERENCES jobs(job_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS release_records (
+                release_id TEXT PRIMARY KEY,
+                project_id TEXT NOT NULL,
+                optimization_contract_id TEXT NOT NULL,
+                asset_id TEXT NOT NULL,
+                slot_key TEXT NOT NULL,
+                status TEXT NOT NULL CHECK(status IN ('active', 'kept', 'rolled_back', 'superseded')),
+                published_at TEXT NOT NULL,
+                release_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY(project_id) REFERENCES projects(project_id),
+                FOREIGN KEY(optimization_contract_id) REFERENCES optimization_contracts(optimization_contract_id),
+                FOREIGN KEY(asset_id) REFERENCES assets(asset_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS performance_observations (
+                observation_id TEXT PRIMARY KEY,
+                project_id TEXT NOT NULL,
+                listing_version_id TEXT,
+                release_id TEXT,
+                phase TEXT NOT NULL CHECK(phase IN ('before', 'after')),
+                period_start TEXT NOT NULL,
+                period_end TEXT NOT NULL,
+                source TEXT NOT NULL,
+                source_class TEXT NOT NULL CHECK(source_class IN ('first_party', 'external_estimate', 'manual')),
+                metrics_json TEXT NOT NULL,
+                note TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(project_id) REFERENCES projects(project_id),
+                FOREIGN KEY(listing_version_id) REFERENCES listing_versions(listing_version_id),
+                FOREIGN KEY(release_id) REFERENCES release_records(release_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS interference_events (
+                interference_event_id TEXT PRIMARY KEY,
+                project_id TEXT NOT NULL,
+                release_id TEXT,
+                event_type TEXT NOT NULL,
+                status TEXT NOT NULL CHECK(status IN ('open', 'resolved')),
+                started_at TEXT NOT NULL,
+                ended_at TEXT,
+                description TEXT NOT NULL,
+                source TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY(project_id) REFERENCES projects(project_id),
+                FOREIGN KEY(release_id) REFERENCES release_records(release_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS optimization_evaluations (
+                optimization_evaluation_id TEXT PRIMARY KEY,
+                project_id TEXT NOT NULL,
+                release_id TEXT NOT NULL,
+                decision TEXT NOT NULL CHECK(decision IN ('keep', 'rollback', 'inconclusive')),
+                rationale TEXT NOT NULL,
+                evidence_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(project_id) REFERENCES projects(project_id),
+                FOREIGN KEY(release_id) REFERENCES release_records(release_id)
+            );
+
             CREATE INDEX IF NOT EXISTS jobs_queue_idx
                 ON jobs(execution_status, execution_mode, queued_at);
             CREATE INDEX IF NOT EXISTS assets_project_idx
@@ -218,6 +340,16 @@ def initialize(path: Path, workspace: Path) -> None:
                 ON coverage_reports(project_id, created_at);
             CREATE INDEX IF NOT EXISTS contracts_project_idx
                 ON image_contracts(project_id, status, slot_key);
+            CREATE INDEX IF NOT EXISTS listing_versions_project_idx
+                ON listing_versions(project_id, status, version);
+            CREATE INDEX IF NOT EXISTS optimization_contracts_project_idx
+                ON optimization_contracts(project_id, status, slot_key);
+            CREATE INDEX IF NOT EXISTS releases_project_idx
+                ON release_records(project_id, status, published_at);
+            CREATE INDEX IF NOT EXISTS observations_project_idx
+                ON performance_observations(project_id, phase, period_end);
+            CREATE INDEX IF NOT EXISTS interference_project_idx
+                ON interference_events(project_id, status, started_at);
             """
         )
         conn.execute(

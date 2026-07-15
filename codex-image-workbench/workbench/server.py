@@ -83,6 +83,10 @@ class Handler(BaseHTTPRequestHandler):
             if launch_match:
                 self.send_json(self.app.get_launch_workspace(launch_match.group(1)))
                 return
+            optimize_match = re.fullmatch(r"/api/projects/([^/]+)/optimize", path)
+            if optimize_match:
+                self.send_json(self.app.get_optimization_workspace(optimize_match.group(1)))
+                return
             project_match = re.fullmatch(r"/api/projects/([^/]+)", path)
             if project_match:
                 self.send_json(self.app.get_project(project_match.group(1)))
@@ -170,6 +174,90 @@ class Handler(BaseHTTPRequestHandler):
             launch_queue = re.fullmatch(r"/api/projects/([^/]+)/launch/contracts/queue", path)
             if launch_queue:
                 self.send_json(self.app.queue_image_contracts(launch_queue.group(1), "user"))
+                return
+            optimize_intake = re.fullmatch(r"/api/projects/([^/]+)/optimize/intake", path)
+            if optimize_intake:
+                payload = self.read_json()
+                self.send_json(
+                    self.app.import_optimization_intake(
+                        optimize_intake.group(1),
+                        payload.get("intake") if isinstance(payload.get("intake"), dict) else payload,
+                        str(payload.get("source_type", "ui_import")),
+                        "user",
+                    )
+                )
+                return
+            optimize_diagnosis = re.fullmatch(r"/api/projects/([^/]+)/optimize/diagnosis", path)
+            if optimize_diagnosis:
+                self.send_json(self.app.save_optimization_diagnosis(optimize_diagnosis.group(1), self.read_json(), "user"))
+                return
+            optimize_gate = re.fullmatch(r"/api/projects/([^/]+)/optimize/gate", path)
+            if optimize_gate:
+                payload = self.read_json()
+                self.send_json(
+                    self.app.decide_optimization_gate(
+                        optimize_gate.group(1),
+                        str(payload.get("status", "")),
+                        payload.get("decision") if isinstance(payload.get("decision"), dict) else {},
+                        "user",
+                    )
+                )
+                return
+            optimize_contracts = re.fullmatch(r"/api/projects/([^/]+)/optimize/contracts", path)
+            if optimize_contracts:
+                self.send_json(self.app.save_optimization_contracts(optimize_contracts.group(1), self.read_json(), "user"))
+                return
+            optimize_queue = re.fullmatch(r"/api/projects/([^/]+)/optimize/contracts/queue", path)
+            if optimize_queue:
+                self.send_json(self.app.queue_optimization_contracts(optimize_queue.group(1), "user"))
+                return
+            optimize_release = re.fullmatch(r"/api/projects/([^/]+)/optimize/releases", path)
+            if optimize_release:
+                self.send_json(self.app.record_optimization_release(optimize_release.group(1), self.read_json(), "user"))
+                return
+            optimize_observation = re.fullmatch(r"/api/projects/([^/]+)/optimize/releases/([^/]+)/observations", path)
+            if optimize_observation:
+                self.send_json(
+                    self.app.add_optimization_observation(
+                        optimize_observation.group(1),
+                        optimize_observation.group(2),
+                        self.read_json(),
+                        "user",
+                    )
+                )
+                return
+            optimize_interference = re.fullmatch(r"/api/projects/([^/]+)/optimize/interference", path)
+            if optimize_interference:
+                self.send_json(
+                    self.app.add_optimization_interference_event(
+                        optimize_interference.group(1), self.read_json(), "user"
+                    )
+                )
+                return
+            optimize_interference_resolve = re.fullmatch(
+                r"/api/projects/([^/]+)/optimize/interference/([^/]+)/resolve", path
+            )
+            if optimize_interference_resolve:
+                payload = self.read_json()
+                self.send_json(
+                    self.app.resolve_optimization_interference_event(
+                        optimize_interference_resolve.group(1),
+                        optimize_interference_resolve.group(2),
+                        str(payload.get("ended_at", "")),
+                        "user",
+                    )
+                )
+                return
+            optimize_evaluation = re.fullmatch(r"/api/projects/([^/]+)/optimize/releases/([^/]+)/evaluation", path)
+            if optimize_evaluation:
+                self.send_json(
+                    self.app.evaluate_optimization_release(
+                        optimize_evaluation.group(1),
+                        optimize_evaluation.group(2),
+                        self.read_json(),
+                        "user",
+                    )
+                )
                 return
             project_jobs = re.fullmatch(r"/api/projects/([^/]+)/jobs", path)
             if project_jobs:

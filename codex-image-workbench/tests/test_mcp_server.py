@@ -54,7 +54,7 @@ class MCPServerTests(unittest.TestCase):
                         self.assertIn("claim_generation_job", names)
                         self.assertIn("evaluate_asset", names)
                         self.assertIn("register_candidate", names)
-                        self.assertEqual(23, len(names))
+                        self.assertEqual(34, len(names))
                         self.assertTrue(
                             {
                                 "import_launch_intake",
@@ -64,6 +64,21 @@ class MCPServerTests(unittest.TestCase):
                                 "save_launch_sequence",
                                 "save_image_contracts",
                                 "queue_image_contracts",
+                            }.issubset(names)
+                        )
+                        self.assertTrue(
+                            {
+                                "import_optimization_intake",
+                                "get_optimization_workspace",
+                                "save_optimization_diagnosis",
+                                "decide_optimization_gate",
+                                "save_optimization_contracts",
+                                "queue_optimization_contracts",
+                                "record_optimization_release",
+                                "add_optimization_observation",
+                                "add_optimization_interference_event",
+                                "resolve_optimization_interference_event",
+                                "evaluate_optimization_release",
                             }.issubset(names)
                         )
 

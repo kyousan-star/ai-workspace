@@ -59,8 +59,43 @@
 
           <div class="tabs" role="tablist">
             <button id="launch-tab" class="tab hidden" type="button" data-tab="launch" role="tab">Launch Plan</button>
+            <button id="optimize-tab" class="tab hidden" type="button" data-tab="optimize" role="tab">Optimize Plan</button>
             <button class="tab active" type="button" data-tab="studio" role="tab">Studio</button>
             <button class="tab" type="button" data-tab="quality" role="tab">Quality</button>
+          </div>
+
+          <div id="optimize-panel" class="tab-panel hidden">
+            <section class="section-band workflow-section">
+              <div class="section-heading">
+                <div><h2>当前 Listing 与诊断输入</h2><span id="optimize-intake-summary"></span></div>
+                <button id="optimize-import-button" class="secondary-button" type="button">↑ 导入 JSON</button>
+              </div>
+              <div id="optimize-readiness"></div>
+            </section>
+
+            <section class="section-band workflow-section">
+              <div class="section-heading">
+                <div><h2>诊断 Gate</h2><span id="optimize-gate-summary"></span></div>
+                <div class="gate-actions">
+                  <button class="danger-button" type="button" data-optimize-gate-status="changes_requested">要求修改</button>
+                  <button class="primary-button" type="button" data-optimize-gate-status="approved">批准诊断</button>
+                </div>
+              </div>
+              <div id="optimize-diagnosis"></div>
+            </section>
+
+            <section class="section-band workflow-section">
+              <div class="section-heading">
+                <div><h2>单变量挑战版本</h2><span id="optimize-contract-summary"></span></div>
+                <button id="optimize-queue-button" class="primary-button" type="button">▶ 进入生成队列</button>
+              </div>
+              <div id="optimize-contracts"></div>
+            </section>
+
+            <section class="section-band workflow-section">
+              <div class="section-heading"><div><h2>发布、观察与决策</h2><span id="optimize-release-summary"></span></div></div>
+              <div id="optimize-releases"></div>
+            </section>
           </div>
 
           <div id="launch-panel" class="tab-panel hidden">
@@ -146,7 +181,7 @@
         <label>项目名称<input name="name" required autocomplete="off" placeholder="ST102 Listing Refresh" /></label>
         <div class="form-grid">
           <label>模式<select name="project_mode"><option value="launch">待上市新品</option><option value="optimize">在售优化</option></select></label>
-          <label>站点<select name="marketplace"><option value="US">Amazon US</option><option value="CA">Amazon CA</option><option value="UK">Amazon UK</option></select></label>
+          <label>站点<select name="marketplace"><option value="US">Amazon US</option><option value="AE">Amazon AE</option><option value="SA">Amazon SA</option><option value="CA">Amazon CA</option><option value="UK">Amazon UK</option></select></label>
           <label>品牌<input name="brand" required autocomplete="off" placeholder="VLOGARA" /></label>
           <label>SKU<input name="sku" required autocomplete="off" placeholder="ST102" /></label>
         </div>
@@ -179,6 +214,7 @@
 
     <input id="file-input" type="file" accept="image/png,image/jpeg,image/webp" hidden />
     <input id="launch-intake-input" type="file" accept="application/json,.json" hidden />
+    <input id="optimize-intake-input" type="file" accept="application/json,.json" hidden />
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <script src="/app.js" defer></script>
   </body>

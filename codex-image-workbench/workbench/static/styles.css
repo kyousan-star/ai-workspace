@@ -143,13 +143,19 @@ table { width: 100%; border-collapse: collapse; font-size: 11px; }
 th { text-align: left; color: var(--muted); background: #f8faf8; padding: 9px 10px; font-size: 10px; text-transform: uppercase; }
 td { padding: 10px; border-top: 1px solid var(--soft-line); vertical-align: middle; }
 td.prompt-cell { max-width: 330px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.diagnosis-table { min-width: 940px; table-layout: fixed; }
+.diagnosis-table th:nth-child(1) { width: 42px; }
+.diagnosis-table th:nth-child(2) { width: 126px; }
+.diagnosis-table th:nth-child(3), .diagnosis-table th:nth-child(4) { width: 260px; }
+.diagnosis-table th:nth-child(5) { width: 200px; }
+.diagnosis-table td { overflow-wrap: anywhere; line-height: 1.35; }
 .row-actions { display: flex; gap: 5px; min-width: 128px; }
 .status-pill { display: inline-flex; align-items: center; min-height: 22px; padding: 0 7px; border-radius: 11px; font-size: 10px; font-weight: 700; white-space: nowrap; }
-.status-queued, .status-awaiting_import, .status-not_run, .status-warning, .status-awaiting, .status-awaiting_gate1, .status-awaiting_gate2 { background: var(--amber-soft); color: var(--amber); }
+.status-queued, .status-awaiting_import, .status-not_run, .status-warning, .status-awaiting, .status-awaiting_gate, .status-awaiting_gate1, .status-awaiting_gate2, .status-inconclusive { background: var(--amber-soft); color: var(--amber); }
 .status-leased, .status-needs_review { background: var(--blue-soft); color: var(--blue); }
-.status-succeeded, .status-passed, .status-candidate, .status-approved, .status-ready { background: var(--green-soft); color: var(--green); }
-.status-failed, .status-rejected, .status-blocked, .status-changes_requested { background: var(--coral-soft); color: var(--coral); }
-.status-transient, .status-pending, .status-draft, .status-superseded, .status-cancelled { background: #eef1ee; color: var(--muted); }
+.status-succeeded, .status-passed, .status-candidate, .status-approved, .status-ready, .status-current, .status-active, .status-kept, .status-low { background: var(--green-soft); color: var(--green); }
+.status-failed, .status-rejected, .status-blocked, .status-changes_requested, .status-rolled_back, .status-high { background: var(--coral-soft); color: var(--coral); }
+.status-transient, .status-pending, .status-draft, .status-superseded, .status-cancelled, .status-medium { background: #eef1ee; color: var(--muted); }
 
 .workflow-section { border-bottom: 1px solid var(--line); padding-bottom: 22px; }
 .workflow-section:last-child { border-bottom: 0; }

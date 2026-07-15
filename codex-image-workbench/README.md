@@ -44,6 +44,31 @@ python3 -m workbench.cli queue-contracts --project <project-id>
 The checked-in P1 inputs are synthetic workflow fixtures, not business facts or
 image-quality evidence. See `P1-STATUS.md` for the current validation boundary.
 
+## P2 Existing Listing Optimization
+
+Optimize projects use a separate evidence and experiment path:
+
+1. import the current Listing snapshot, verified product references, VOC and
+   competitor evidence, external or first-party baseline observations, and
+   dated interference events;
+2. save an evidence-linked diagnosis and approve its Gate;
+3. create one-variable challenge contracts only after the current Listing image
+   set and local source images are complete;
+4. reuse the shared generation queue, parent-child versions, technical checks,
+   and manual QC;
+5. record the actual Amazon publication time, post-release observation windows,
+   and price, promotion, ads, inventory, review, or competitor interference;
+6. record an explicit `keep`, `rollback`, or `inconclusive` decision.
+
+Sorftime observations are stored as `external_estimate`. They do not substitute
+for Seller Central Sessions or Unit Session Percentage and do not establish
+image causation. The browser exposes this workflow under `Optimize Plan`; eleven
+P2 MCP tools and matching CLI/HTTP operations use the same SQLite state.
+
+The first real project is PH204 for Amazon AE. Its evidence-linked diagnosis is
+at the human Gate, while challenge generation remains blocked because only the
+live MAIN image has been captured. See `P2-STATUS.md`.
+
 ## Codex Plugin
 
 The thin plugin adapter lives at:
@@ -57,7 +82,7 @@ this directory, while shared Skills remain under `/Users/lihuan/ai-workspace/ski
 The repository Marketplace is registered as `personal`, and the plugin is
 installed as `codex-image-workbench@personal`.
 
-New Codex tasks load the stdio MCP tools. Write-capable MCP calls require an
+New Codex tasks load the 34 stdio MCP tools. Write-capable MCP calls require an
 interactive approval; non-interactive `codex exec` is not treated as an
 unattended worker.
 

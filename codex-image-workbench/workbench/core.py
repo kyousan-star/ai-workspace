@@ -14,6 +14,15 @@ from typing import Any, Iterator
 
 from . import db
 from .p1 import build_coverage, normalize_intake, validate_contracts, validate_sequence, validate_strategy
+from .p2 import (
+    build_optimization_readiness,
+    normalize_interference_event,
+    normalize_observation,
+    normalize_optimization_intake,
+    validate_diagnosis,
+    validate_evaluation,
+    validate_optimization_contracts,
+)
 from .util import WorkbenchError, iso, json_dump, new_ulid, sha256_file, slug, technical_check, utcnow
 
 
@@ -26,7 +35,14 @@ def row_dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
     if row is None:
         return None
     value = dict(row)
-    for field in ("contract_json", "technical_checks_json", "evidence_json", "detail_json"):
+    for field in (
+        "contract_json",
+        "technical_checks_json",
+        "evidence_json",
+        "detail_json",
+        "metrics_json",
+        "release_json",
+    ):
         if field in value:
             decoded_name = field.removesuffix("_json")
             value[decoded_name] = json.loads(value.pop(field))
@@ -246,6 +262,11 @@ class Workbench:
                 "brand_invariants",
                 "change_only",
                 "contract_id",
+                "optimization_contract_id",
+                "issue_id",
+                "challenge_key",
+                "target_metrics",
+                "observation_days",
             ):
                 if field in payload:
                     contract[field] = payload[field]
@@ -1080,3 +1101,675 @@ class Workbench:
         result = self.get_launch_workspace(project_id)
         result["queued_jobs"] = jobs
         return result
+
+    def _require_optimize_project(self, conn: sqlite3.Connection, project_id: str) -> sqlite3.Row:
+        project = conn.execute("SELECT * FROM projects WHERE project_id = ?", (project_id,)).fetchone()
+        if not project:
+            raise WorkbenchError(f"unknown project: {project_id}")
+        if project["project_mode"] != "optimize":
+            raise WorkbenchError("P2 optimization workflow is only available for optimize projects")
+        return project
+
+    def _cancel_pending_optimization_jobs(
+        self,
+        conn: sqlite3.Connection,
+        project_id: str,
+        now: str,
+        reason: str,
+    ) -> None:
+        leased = conn.execute(
+            "SELECT j.job_id FROM jobs j JOIN optimization_contracts c ON c.job_id = j.job_id "
+            "WHERE c.project_id = ? AND c.status != 'superseded' AND j.execution_status = 'leased'",
+            (project_id,),
+        ).fetchall()
+        if leased:
+            raise WorkbenchError(
+                "cannot revise optimization inputs while challenge jobs are leased: "
+                + ", ".join(row["job_id"] for row in leased)
+            )
+        pending = conn.execute(
+            "SELECT j.job_id FROM jobs j JOIN optimization_contracts c ON c.job_id = j.job_id "
+            "WHERE c.project_id = ? AND c.status != 'superseded' "
+            "AND j.execution_status IN ('queued', 'awaiting_import')",
+            (project_id,),
+        ).fetchall()
+        for row in pending:
+            conn.execute(
+                "UPDATE jobs SET execution_status = 'cancelled', finished_at = ?, error = ?, "
+                "lease_owner = NULL, lease_expires_at = NULL WHERE job_id = ?",
+                (now, reason, row["job_id"]),
+            )
+            self.event(conn, "job", row["job_id"], "job.cancelled", "system", {"reason": reason})
+
+    def _supersede_optimization_outputs(
+        self,
+        conn: sqlite3.Connection,
+        project_id: str,
+        now: str,
+        reason: str,
+        include_diagnosis: bool,
+    ) -> None:
+        self._cancel_pending_optimization_jobs(conn, project_id, now, reason)
+        conn.execute(
+            "UPDATE optimization_contracts SET status = 'superseded', updated_at = ? "
+            "WHERE project_id = ? AND status != 'superseded'",
+            (now, project_id),
+        )
+        if include_diagnosis:
+            conn.execute(
+                "UPDATE optimization_diagnostics SET status = 'superseded', updated_at = ? "
+                "WHERE project_id = ? AND status != 'superseded'",
+                (now, project_id),
+            )
+
+    def import_optimization_intake(
+        self,
+        project_id: str,
+        payload: dict[str, Any],
+        source_type: str = "codex_normalized",
+        actor: str = "codex",
+    ) -> dict[str, Any]:
+        intake = normalize_optimization_intake(payload)
+        readiness = build_optimization_readiness(intake)
+        now = iso()
+        with self.connect() as conn:
+            self._require_optimize_project(conn, project_id)
+            self._supersede_optimization_outputs(
+                conn,
+                project_id,
+                now,
+                "P2 Listing snapshot was replaced",
+                include_diagnosis=True,
+            )
+            version = conn.execute(
+                "SELECT COALESCE(MAX(version), 0) + 1 FROM listing_versions WHERE project_id = ?",
+                (project_id,),
+            ).fetchone()[0]
+            conn.execute(
+                "UPDATE listing_versions SET status = 'superseded', updated_at = ? "
+                "WHERE project_id = ? AND status = 'current'",
+                (now, project_id),
+            )
+            listing_version_id = f"listing_{new_ulid()}"
+            conn.execute(
+                "INSERT INTO listing_versions(listing_version_id, project_id, version, status, schema_version, "
+                "source_type, captured_at, intake_json, readiness_json, created_at, updated_at) "
+                "VALUES(?, ?, ?, 'current', ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    listing_version_id,
+                    project_id,
+                    version,
+                    intake["schema_version"],
+                    source_type,
+                    intake["listing"]["captured_at"],
+                    json_dump(intake),
+                    json_dump(readiness),
+                    now,
+                    now,
+                ),
+            )
+            conn.execute(
+                "INSERT INTO optimization_gates(project_id, status, decision_json, updated_at) "
+                "VALUES(?, 'pending', '{}', ?) ON CONFLICT(project_id) DO UPDATE SET "
+                "status = 'pending', decision_json = '{}', decided_by = NULL, decided_at = NULL, updated_at = excluded.updated_at",
+                (project_id, now),
+            )
+            for observation in intake["baseline"]["observations"]:
+                conn.execute(
+                    "INSERT INTO performance_observations(observation_id, project_id, listing_version_id, release_id, "
+                    "phase, period_start, period_end, source, source_class, metrics_json, note, created_at) "
+                    "VALUES(?, ?, ?, NULL, 'before', ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        f"obs_{new_ulid()}",
+                        project_id,
+                        listing_version_id,
+                        observation["period_start"],
+                        observation["period_end"],
+                        observation["source"],
+                        observation["source_class"],
+                        json_dump(observation["metrics"]),
+                        observation["note"],
+                        now,
+                    ),
+                )
+            for event in intake["baseline"]["events"]:
+                conn.execute(
+                    "INSERT INTO interference_events(interference_event_id, project_id, release_id, event_type, status, "
+                    "started_at, ended_at, description, source, created_at, updated_at) "
+                    "VALUES(?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        f"interference_{new_ulid()}",
+                        project_id,
+                        event["event_type"],
+                        event["status"],
+                        event["started_at"],
+                        event["ended_at"] or None,
+                        event["description"],
+                        event["source"],
+                        now,
+                        now,
+                    ),
+                )
+            conn.execute("UPDATE projects SET updated_at = ? WHERE project_id = ?", (now, project_id))
+            self.event(
+                conn,
+                "listing_version",
+                listing_version_id,
+                "optimization.intake_imported",
+                actor,
+                {"version": version, "readiness_status": readiness["status"]},
+            )
+        return self.get_optimization_workspace(project_id)
+
+    def get_optimization_workspace(self, project_id: str) -> dict[str, Any]:
+        with self.connect() as conn:
+            self._require_optimize_project(conn, project_id)
+            listing_row = conn.execute(
+                "SELECT * FROM listing_versions WHERE project_id = ? AND status = 'current' "
+                "ORDER BY version DESC LIMIT 1",
+                (project_id,),
+            ).fetchone()
+            diagnostic_row = conn.execute(
+                "SELECT * FROM optimization_diagnostics WHERE project_id = ? AND status != 'superseded' "
+                "ORDER BY version DESC LIMIT 1",
+                (project_id,),
+            ).fetchone()
+            gate_row = conn.execute(
+                "SELECT * FROM optimization_gates WHERE project_id = ?",
+                (project_id,),
+            ).fetchone()
+            contract_rows = conn.execute(
+                "SELECT * FROM optimization_contracts WHERE project_id = ? AND status != 'superseded' "
+                "ORDER BY slot_key, challenge_key",
+                (project_id,),
+            ).fetchall()
+            release_rows = conn.execute(
+                "SELECT * FROM release_records WHERE project_id = ? ORDER BY published_at DESC",
+                (project_id,),
+            ).fetchall()
+            observation_rows = conn.execute(
+                "SELECT * FROM performance_observations WHERE project_id = ? ORDER BY period_end DESC, created_at DESC",
+                (project_id,),
+            ).fetchall()
+            interference_rows = conn.execute(
+                "SELECT * FROM interference_events WHERE project_id = ? ORDER BY started_at DESC",
+                (project_id,),
+            ).fetchall()
+            evaluation_rows = conn.execute(
+                "SELECT * FROM optimization_evaluations WHERE project_id = ? ORDER BY created_at DESC",
+                (project_id,),
+            ).fetchall()
+
+        listing = row_dict(listing_row)
+        intake = readiness = None
+        if listing:
+            intake = json.loads(listing.pop("intake_json"))
+            readiness = json.loads(listing.pop("readiness_json"))
+        diagnostic = row_dict(diagnostic_row)
+        if diagnostic:
+            diagnostic["diagnostic"] = json.loads(diagnostic.pop("diagnostic_json"))
+        gate = row_dict(gate_row)
+        if gate:
+            gate["decision"] = json.loads(gate.pop("decision_json"))
+        contracts = [row_dict(row) for row in contract_rows]
+        releases = [row_dict(row) for row in release_rows]
+        observations = [row_dict(row) for row in observation_rows]
+        interference_events = [row_dict(row) for row in interference_rows]
+        evaluations = [row_dict(row) for row in evaluation_rows]
+        return {
+            "project_id": project_id,
+            "listing_version": listing,
+            "intake": intake,
+            "readiness": readiness,
+            "diagnostic": diagnostic,
+            "gate": gate,
+            "contracts": contracts,
+            "releases": releases,
+            "observations": observations,
+            "interference_events": interference_events,
+            "evaluations": evaluations,
+        }
+
+    def save_optimization_diagnosis(
+        self,
+        project_id: str,
+        payload: dict[str, Any],
+        actor: str = "codex",
+    ) -> dict[str, Any]:
+        workspace = self.get_optimization_workspace(project_id)
+        if not workspace["intake"] or not workspace["readiness"]:
+            raise WorkbenchError("import a P2 Listing snapshot before saving diagnosis")
+        diagnostic = validate_diagnosis(workspace["intake"], payload)
+        status = "awaiting_gate" if workspace["readiness"]["diagnosis_status"] == "passed" else "draft"
+        now = iso()
+        with self.connect() as conn:
+            self._require_optimize_project(conn, project_id)
+            self._supersede_optimization_outputs(
+                conn,
+                project_id,
+                now,
+                "P2 diagnosis was replaced",
+                include_diagnosis=False,
+            )
+            version = conn.execute(
+                "SELECT COALESCE(MAX(version), 0) + 1 FROM optimization_diagnostics WHERE project_id = ?",
+                (project_id,),
+            ).fetchone()[0]
+            conn.execute(
+                "UPDATE optimization_diagnostics SET status = 'superseded', updated_at = ? "
+                "WHERE project_id = ? AND status != 'superseded'",
+                (now, project_id),
+            )
+            diagnostic_id = f"diagnostic_{new_ulid()}"
+            conn.execute(
+                "INSERT INTO optimization_diagnostics(diagnostic_id, project_id, listing_version_id, version, status, "
+                "diagnostic_json, created_at, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    diagnostic_id,
+                    project_id,
+                    workspace["listing_version"]["listing_version_id"],
+                    version,
+                    status,
+                    json_dump(diagnostic),
+                    now,
+                    now,
+                ),
+            )
+            gate_status = "awaiting" if status == "awaiting_gate" else "pending"
+            conn.execute(
+                "INSERT INTO optimization_gates(project_id, status, decision_json, updated_at) "
+                "VALUES(?, ?, '{}', ?) ON CONFLICT(project_id) DO UPDATE SET status = excluded.status, "
+                "decision_json = '{}', decided_by = NULL, decided_at = NULL, updated_at = excluded.updated_at",
+                (project_id, gate_status, now),
+            )
+            self.event(conn, "diagnostic", diagnostic_id, "optimization.diagnosis_saved", actor, {"status": status})
+        return self.get_optimization_workspace(project_id)
+
+    def decide_optimization_gate(
+        self,
+        project_id: str,
+        status: str,
+        decision: dict[str, Any] | None = None,
+        actor: str = "user",
+    ) -> dict[str, Any]:
+        if status not in {"approved", "changes_requested"}:
+            raise WorkbenchError("optimization Gate status must be approved or changes_requested")
+        workspace = self.get_optimization_workspace(project_id)
+        if not workspace["diagnostic"]:
+            raise WorkbenchError("save diagnosis before deciding the optimization Gate")
+        if status == "approved" and workspace["readiness"]["diagnosis_status"] != "passed":
+            raise WorkbenchError("diagnosis blockers must be resolved before approval")
+        now = iso()
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT INTO optimization_gates(project_id, status, decision_json, decided_by, decided_at, updated_at) "
+                "VALUES(?, ?, ?, ?, ?, ?) ON CONFLICT(project_id) DO UPDATE SET status = excluded.status, "
+                "decision_json = excluded.decision_json, decided_by = excluded.decided_by, "
+                "decided_at = excluded.decided_at, updated_at = excluded.updated_at",
+                (project_id, status, json_dump(decision or {}), actor, now, now),
+            )
+            conn.execute(
+                "UPDATE optimization_diagnostics SET status = ?, updated_at = ? WHERE diagnostic_id = ?",
+                (status, now, workspace["diagnostic"]["diagnostic_id"]),
+            )
+            self.event(conn, "project", project_id, f"optimization.gate_{status}", actor, decision or {})
+        return self.get_optimization_workspace(project_id)
+
+    def save_optimization_contracts(
+        self,
+        project_id: str,
+        payload: dict[str, Any],
+        actor: str = "codex",
+    ) -> dict[str, Any]:
+        workspace = self.get_optimization_workspace(project_id)
+        if (workspace.get("gate") or {}).get("status") != "approved":
+            raise WorkbenchError("approve the optimization diagnosis before saving challenge contracts")
+        contracts = validate_optimization_contracts(
+            workspace["intake"],
+            workspace["diagnostic"]["diagnostic"],
+            workspace["readiness"],
+            payload,
+        )
+        now = iso()
+        with self.connect() as conn:
+            self._cancel_pending_optimization_jobs(conn, project_id, now, "P2 challenge contracts were replaced")
+            version = conn.execute(
+                "SELECT COALESCE(MAX(version), 0) + 1 FROM optimization_contracts WHERE project_id = ?",
+                (project_id,),
+            ).fetchone()[0]
+            conn.execute(
+                "UPDATE optimization_contracts SET status = 'superseded', updated_at = ? "
+                "WHERE project_id = ? AND status != 'superseded'",
+                (now, project_id),
+            )
+            for contract in contracts:
+                optimization_contract_id = f"optcontract_{new_ulid()}"
+                status = contract.pop("readiness")
+                conn.execute(
+                    "INSERT INTO optimization_contracts(optimization_contract_id, project_id, diagnostic_id, "
+                    "challenge_key, slot_key, version, status, contract_json, created_at, updated_at) "
+                    "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        optimization_contract_id,
+                        project_id,
+                        workspace["diagnostic"]["diagnostic_id"],
+                        contract["challenge_key"],
+                        contract["slot_key"],
+                        version,
+                        status,
+                        json_dump(contract),
+                        now,
+                        now,
+                    ),
+                )
+                self.event(conn, "optimization_contract", optimization_contract_id, "optimization.contract_saved", actor, {"status": status})
+        return self.get_optimization_workspace(project_id)
+
+    def queue_optimization_contracts(self, project_id: str, actor: str = "user") -> dict[str, Any]:
+        workspace = self.get_optimization_workspace(project_id)
+        if workspace["readiness"]["generation_status"] != "passed":
+            raise WorkbenchError("optimization generation blockers must be resolved before queueing")
+        if (workspace.get("gate") or {}).get("status") != "approved":
+            raise WorkbenchError("approve the optimization diagnosis before queueing")
+        if not workspace["contracts"]:
+            raise WorkbenchError("save optimization contracts before queueing")
+        blocked = [item for item in workspace["contracts"] if item["status"] == "blocked"]
+        if blocked:
+            reasons = [f"{item['challenge_key']}: {', '.join(item['contract']['blocked_reasons'])}" for item in blocked]
+            raise WorkbenchError("blocked optimization contracts: " + "; ".join(reasons))
+
+        current_images = {f"listing:{image['slot_key']}": image for image in workspace["intake"]["listing"]["images"]}
+        product_refs = {reference["reference_id"]: reference for reference in workspace["intake"]["references"]}
+        references = {**current_images, **product_refs}
+        claims = {claim["claim_id"]: claim for claim in workspace["intake"]["claims"]}
+        jobs = []
+        for item in workspace["contracts"]:
+            if item["job_id"]:
+                jobs.append(self.get_job(item["job_id"]))
+                continue
+            contract = item["contract"]
+            payload = {
+                "slot_key": contract["slot_key"],
+                "slot_title": f"{contract['slot_key']} · {contract['challenge_key']}",
+                "execution_mode": contract["execution_mode"],
+                "operation": contract["operation"],
+                "parent_asset_id": contract.get("parent_asset_id"),
+                "prompt": contract["prompt"],
+                "references": [
+                    {
+                        "reference_id": reference_id,
+                        "path": references[reference_id]["path"],
+                        "role": references[reference_id].get("role", "current-listing"),
+                        "view": references[reference_id].get("view", "listing"),
+                    }
+                    for reference_id in contract["reference_ids"]
+                ],
+                "invariants": contract["product_invariants"],
+                "product_invariants": contract["product_invariants"],
+                "change_only": contract["change_only"],
+                "avoid": contract["avoid"],
+                "acceptance": contract["acceptance"],
+                "expected_output": contract["expected_output"],
+                "claim_ids": contract["claim_ids"],
+                "claims": [claims[claim_id] for claim_id in contract["claim_ids"]],
+                "optimization_contract_id": item["optimization_contract_id"],
+                "issue_id": contract["issue_id"],
+                "challenge_key": contract["challenge_key"],
+                "target_metrics": contract["target_metrics"],
+                "observation_days": contract["observation_days"],
+                "idempotency_key": f"p2-{item['optimization_contract_id']}",
+            }
+            job, _ = self.create_job(project_id, payload)
+            with self.connect() as conn:
+                conn.execute(
+                    "UPDATE optimization_contracts SET status = 'queued', job_id = ?, updated_at = ? "
+                    "WHERE optimization_contract_id = ?",
+                    (job["job_id"], iso(), item["optimization_contract_id"]),
+                )
+                self.event(conn, "optimization_contract", item["optimization_contract_id"], "optimization.contract_queued", actor, {"job_id": job["job_id"]})
+            jobs.append(job)
+        result = self.get_optimization_workspace(project_id)
+        result["queued_jobs"] = jobs
+        return result
+
+    def record_optimization_release(
+        self,
+        project_id: str,
+        payload: dict[str, Any],
+        actor: str = "user",
+    ) -> dict[str, Any]:
+        contract_id = str(payload.get("optimization_contract_id", "")).strip()
+        asset_id = str(payload.get("asset_id", "")).strip()
+        published_at = str(payload.get("published_at", "")).strip()
+        if not contract_id or not asset_id or not published_at:
+            raise WorkbenchError("optimization_contract_id, asset_id, and published_at are required")
+        now = iso()
+        with self.connect() as conn:
+            self._require_optimize_project(conn, project_id)
+            contract = conn.execute(
+                "SELECT * FROM optimization_contracts WHERE optimization_contract_id = ? AND project_id = ?",
+                (contract_id, project_id),
+            ).fetchone()
+            if not contract:
+                raise WorkbenchError(f"unknown optimization contract: {contract_id}")
+            asset = conn.execute(
+                "SELECT * FROM assets WHERE asset_id = ? AND project_id = ?",
+                (asset_id, project_id),
+            ).fetchone()
+            if not asset:
+                raise WorkbenchError(f"unknown optimization asset: {asset_id}")
+            if contract["job_id"] != asset["job_id"]:
+                raise WorkbenchError("release asset must be the result of the selected optimization contract")
+            if asset["technical_status"] != "passed" or asset["qc_status"] != "passed":
+                raise WorkbenchError("release asset must pass technical checks and manual QC")
+            release_id = f"release_{new_ulid()}"
+            conn.execute(
+                "UPDATE release_records SET status = 'superseded', updated_at = ? "
+                "WHERE project_id = ? AND slot_key = ? AND status = 'active'",
+                (now, project_id, contract["slot_key"]),
+            )
+            release_detail = {
+                "note": str(payload.get("note", "")).strip(),
+                "published_by": str(payload.get("published_by", actor)).strip(),
+            }
+            conn.execute(
+                "INSERT INTO release_records(release_id, project_id, optimization_contract_id, asset_id, slot_key, "
+                "status, published_at, release_json, created_at, updated_at) "
+                "VALUES(?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)",
+                (release_id, project_id, contract_id, asset_id, contract["slot_key"], published_at, json_dump(release_detail), now, now),
+            )
+            self.event(conn, "release", release_id, "optimization.release_recorded", actor, {"published_at": published_at})
+        return self.get_optimization_workspace(project_id)
+
+    def add_optimization_observation(
+        self,
+        project_id: str,
+        release_id: str,
+        payload: dict[str, Any],
+        actor: str = "codex",
+    ) -> dict[str, Any]:
+        observation = normalize_observation(payload, "after")
+        now = iso()
+        with self.connect() as conn:
+            self._require_optimize_project(conn, project_id)
+            release = conn.execute(
+                "SELECT release_id FROM release_records WHERE release_id = ? AND project_id = ?",
+                (release_id, project_id),
+            ).fetchone()
+            if not release:
+                raise WorkbenchError(f"unknown release: {release_id}")
+            observation_id = f"obs_{new_ulid()}"
+            conn.execute(
+                "INSERT INTO performance_observations(observation_id, project_id, listing_version_id, release_id, "
+                "phase, period_start, period_end, source, source_class, metrics_json, note, created_at) "
+                "VALUES(?, ?, NULL, ?, 'after', ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    observation_id,
+                    project_id,
+                    release_id,
+                    observation["period_start"],
+                    observation["period_end"],
+                    observation["source"],
+                    observation["source_class"],
+                    json_dump(observation["metrics"]),
+                    observation["note"],
+                    now,
+                ),
+            )
+            self.event(conn, "observation", observation_id, "optimization.observation_added", actor, {"release_id": release_id})
+        return self.get_optimization_workspace(project_id)
+
+    def add_optimization_interference_event(
+        self,
+        project_id: str,
+        payload: dict[str, Any],
+        actor: str = "user",
+    ) -> dict[str, Any]:
+        event = normalize_interference_event(payload)
+        release_id = str(payload.get("release_id", "")).strip() or None
+        now = iso()
+        with self.connect() as conn:
+            self._require_optimize_project(conn, project_id)
+            if release_id:
+                release = conn.execute(
+                    "SELECT release_id FROM release_records WHERE release_id = ? AND project_id = ?",
+                    (release_id, project_id),
+                ).fetchone()
+                if not release:
+                    raise WorkbenchError(f"unknown release: {release_id}")
+            event_id = f"interference_{new_ulid()}"
+            conn.execute(
+                "INSERT INTO interference_events(interference_event_id, project_id, release_id, event_type, status, "
+                "started_at, ended_at, description, source, created_at, updated_at) "
+                "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    event_id,
+                    project_id,
+                    release_id,
+                    event["event_type"],
+                    event["status"],
+                    event["started_at"],
+                    event["ended_at"] or None,
+                    event["description"],
+                    event["source"],
+                    now,
+                    now,
+                ),
+            )
+            self.event(conn, "interference_event", event_id, "optimization.interference_added", actor, {"release_id": release_id})
+        return self.get_optimization_workspace(project_id)
+
+    def resolve_optimization_interference_event(
+        self,
+        project_id: str,
+        interference_event_id: str,
+        ended_at: str,
+        actor: str = "user",
+    ) -> dict[str, Any]:
+        ended_at = str(ended_at).strip()
+        if not ended_at:
+            raise WorkbenchError("ended_at is required when resolving an interference event")
+        now = iso()
+        with self.connect() as conn:
+            self._require_optimize_project(conn, project_id)
+            event = conn.execute(
+                "SELECT * FROM interference_events WHERE interference_event_id = ? AND project_id = ?",
+                (interference_event_id, project_id),
+            ).fetchone()
+            if not event:
+                raise WorkbenchError(f"unknown interference event: {interference_event_id}")
+            if ended_at < event["started_at"]:
+                raise WorkbenchError("interference event ended_at cannot precede started_at")
+            conn.execute(
+                "UPDATE interference_events SET status = 'resolved', ended_at = ?, updated_at = ? "
+                "WHERE interference_event_id = ?",
+                (ended_at, now, interference_event_id),
+            )
+            self.event(
+                conn,
+                "interference_event",
+                interference_event_id,
+                "optimization.interference_resolved",
+                actor,
+                {"ended_at": ended_at},
+            )
+        return self.get_optimization_workspace(project_id)
+
+    def evaluate_optimization_release(
+        self,
+        project_id: str,
+        release_id: str,
+        payload: dict[str, Any],
+        actor: str = "user",
+    ) -> dict[str, Any]:
+        evaluation = validate_evaluation(payload)
+        workspace = self.get_optimization_workspace(project_id)
+        release = next((item for item in workspace["releases"] if item["release_id"] == release_id), None)
+        if not release:
+            raise WorkbenchError(f"unknown release: {release_id}")
+        before = [item for item in workspace["observations"] if item["phase"] == "before"]
+        after = [item for item in workspace["observations"] if item["phase"] == "after" and item["release_id"] == release_id]
+        if not before or not after:
+            if evaluation["decision"] != "inconclusive":
+                raise WorkbenchError("keep or rollback requires both before and after observations")
+        comparable: list[dict[str, Any]] = []
+        for after_item in after:
+            matches = [
+                item for item in before
+                if item["source"] == after_item["source"] and item["source_class"] == after_item["source_class"]
+                and item["period_end"] <= release["published_at"][:10]
+            ]
+            if not matches:
+                continue
+            before_item = max(matches, key=lambda item: (item["period_end"], item["created_at"]))
+            shared = sorted(
+                key for key in set(before_item["metrics"]) & set(after_item["metrics"])
+                if before_item["metrics"][key] is not None and after_item["metrics"][key] is not None
+            )
+            for key in shared:
+                old = before_item["metrics"][key]
+                new = after_item["metrics"][key]
+                comparable.append(
+                    {
+                        "metric": key,
+                        "source": after_item["source"],
+                        "before_observation_id": before_item["observation_id"],
+                        "after_observation_id": after_item["observation_id"],
+                        "before": old,
+                        "after": new,
+                        "delta": new - old,
+                        "delta_percent": ((new - old) / old * 100) if old else None,
+                    }
+                )
+        open_events = [
+            item for item in workspace["interference_events"]
+            if item["status"] == "open" and (item["release_id"] in {None, release_id})
+        ]
+        if evaluation["decision"] in {"keep", "rollback"}:
+            if not comparable:
+                raise WorkbenchError("keep or rollback requires at least one comparable metric from the same source")
+            if open_events:
+                raise WorkbenchError("resolve or explicitly close interference events before keep or rollback")
+        evidence = {
+            "comparable_metrics": comparable,
+            "open_interference_event_ids": [item["interference_event_id"] for item in open_events],
+            "before_observation_ids": [item["observation_id"] for item in before],
+            "after_observation_ids": [item["observation_id"] for item in after],
+            "actor": actor,
+        }
+        now = iso()
+        with self.connect() as conn:
+            evaluation_id = f"opteval_{new_ulid()}"
+            conn.execute(
+                "INSERT INTO optimization_evaluations(optimization_evaluation_id, project_id, release_id, decision, "
+                "rationale, evidence_json, created_at) VALUES(?, ?, ?, ?, ?, ?, ?)",
+                (evaluation_id, project_id, release_id, evaluation["decision"], evaluation["rationale"], json_dump(evidence), now),
+            )
+            if evaluation["decision"] in {"keep", "rollback"}:
+                release_status = "kept" if evaluation["decision"] == "keep" else "rolled_back"
+                conn.execute(
+                    "UPDATE release_records SET status = ?, updated_at = ? WHERE release_id = ?",
+                    (release_status, now, release_id),
+                )
+            self.event(conn, "release", release_id, f"optimization.{evaluation['decision']}", actor, evidence)
+        return self.get_optimization_workspace(project_id)

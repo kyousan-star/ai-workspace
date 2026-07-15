@@ -3,6 +3,7 @@ const state = {
   projectId: null,
   project: null,
   launch: null,
+  optimize: null,
   selectedAssetId: null,
   uploadJobId: null,
   activeTab: "studio",
@@ -56,9 +57,15 @@ function statusLabel(status) {
     awaiting: "待确认",
     awaiting_gate1: "待 Gate 1",
     awaiting_gate2: "待 Gate 2",
+    awaiting_gate: "待诊断确认",
     changes_requested: "需修改",
     draft: "草稿",
     superseded: "已失效",
+    current: "当前版本",
+    active: "观察中",
+    kept: "保留",
+    rolled_back: "已回滚",
+    inconclusive: "证据不足",
   }[status] || status;
 }
 
@@ -116,8 +123,10 @@ async function selectProject(projectId) {
   state.projectId = projectId;
   state.project = await api(`/api/projects/${encodeURIComponent(projectId)}`);
   const isLaunch = state.project.project.project_mode === "launch";
+  const isOptimize = state.project.project.project_mode === "optimize";
   state.launch = isLaunch ? await api(`/api/projects/${encodeURIComponent(projectId)}/launch`) : null;
-  state.activeTab = isLaunch ? "launch" : "studio";
+  state.optimize = isOptimize ? await api(`/api/projects/${encodeURIComponent(projectId)}/optimize`) : null;
+  state.activeTab = isLaunch ? "launch" : (isOptimize ? "optimize" : "studio");
   state.selectedAssetId = null;
   renderProjects();
   renderProject();
@@ -128,6 +137,7 @@ async function selectProject(projectId) {
 function renderProject() {
   const { project, jobs, assets } = state.project;
   const isLaunch = project.project_mode === "launch";
+  const isOptimize = project.project_mode === "optimize";
   el("empty-view").classList.add("hidden");
   el("project-view").classList.remove("hidden");
   el("project-title").textContent = project.name;
@@ -137,13 +147,90 @@ function renderProject() {
   el("stat-assets").textContent = assets.length;
   el("stat-qc").textContent = assets.filter((asset) => ["not_run", "needs_review"].includes(asset.qc_status)).length;
   el("launch-tab").classList.toggle("hidden", !isLaunch);
-  el("new-job-button").classList.toggle("hidden", isLaunch);
+  el("optimize-tab").classList.toggle("hidden", !isOptimize);
+  el("new-job-button").classList.toggle("hidden", isLaunch || isOptimize);
   renderJobs();
   renderAssets();
   renderQuality();
   renderLaunch();
+  renderOptimize();
   fillParentOptions();
   setActiveTab(state.activeTab);
+}
+
+function renderOptimize() {
+  if (!state.optimize) {
+    el("optimize-intake-summary").textContent = "";
+    el("optimize-readiness").innerHTML = emptyWorkflow("尚未导入当前 Listing 快照");
+    el("optimize-diagnosis").innerHTML = emptyWorkflow("尚无诊断版本");
+    el("optimize-contracts").innerHTML = emptyWorkflow("尚无挑战版本");
+    el("optimize-releases").innerHTML = emptyWorkflow("尚无发布记录");
+    setOptimizeActionState();
+    return;
+  }
+  const { listing_version: listingVersion, intake, readiness, diagnostic, gate, contracts = [], releases = [], observations = [], interference_events: events = [], evaluations = [] } = state.optimize;
+  if (!intake || !readiness) {
+    el("optimize-intake-summary").textContent = "等待输入";
+    el("optimize-readiness").innerHTML = emptyWorkflow("尚未导入当前 Listing 快照");
+  } else {
+    const metrics = readiness.metrics || {};
+    el("optimize-intake-summary").innerHTML = `${pill(readiness.status)} v${listingVersion?.version || 1} · ${escapeHtml(intake.listing.asin)}`;
+    el("optimize-readiness").innerHTML = `
+      <div class="coverage-metrics">
+        <div><span>当前图</span><strong>${metrics.current_listing_images || 0}</strong></div>
+        <div><span>本地原图</span><strong>${metrics.local_current_images || 0}</strong></div>
+        <div><span>产品参考</span><strong>${metrics.product_references || 0}</strong></div>
+        <div><span>基线周期</span><strong>${metrics.baseline_periods || 0}</strong></div>
+        <div><span>诊断准备</span><strong>${escapeHtml(statusLabel(readiness.diagnosis_status))}</strong></div>
+        <div><span>改图准备</span><strong>${escapeHtml(statusLabel(readiness.generation_status))}</strong></div>
+      </div>
+      <div class="issue-layout">
+        ${issueList("诊断阻断", readiness.diagnosis_blockers, "danger")}
+        ${issueList("改图阻断", readiness.generation_blockers, "danger")}
+        ${issueList("评估提醒", readiness.evaluation_warnings, "warning")}
+        ${issueList("证据提醒", readiness.warnings, "warning")}
+        ${issueList("待补输入", readiness.requests, "capture")}
+      </div>`;
+  }
+
+  el("optimize-gate-summary").innerHTML = pill(gate?.status || "pending");
+  if (diagnostic) {
+    const priorities = new Set(diagnostic.diagnostic.priority_issue_ids || []);
+    el("optimize-diagnosis").innerHTML = `<div class="table-wrap"><table class="diagnosis-table"><thead><tr><th>优先</th><th>问题</th><th>发现</th><th>假设</th><th>证据</th></tr></thead><tbody>${diagnostic.diagnostic.issues.map((issue) => `<tr><td>${priorities.has(issue.issue_id) ? "是" : "否"}</td><td><strong>${escapeHtml(issue.issue_id)}</strong><br>${pill(issue.severity)}</td><td>${escapeHtml(issue.finding)}</td><td>${escapeHtml(issue.hypothesis)}</td><td>${escapeHtml(issue.evidence_refs.join(" · "))}</td></tr>`).join("")}</tbody></table></div>`;
+  } else {
+    el("optimize-diagnosis").innerHTML = emptyWorkflow("尚无诊断版本");
+  }
+
+  el("optimize-contract-summary").textContent = `${contracts.length} 个挑战`;
+  el("optimize-contracts").innerHTML = contracts.length ? `<div class="table-wrap"><table><thead><tr><th>挑战</th><th>图位</th><th>单变量</th><th>目标指标</th><th>状态</th></tr></thead><tbody>${contracts.map((item) => `<tr><td><strong>${escapeHtml(item.challenge_key)}</strong></td><td>${escapeHtml(item.slot_key)}</td><td>${escapeHtml(item.contract.change_only)}</td><td>${escapeHtml(item.contract.target_metrics.join(" · ") || "-")}</td><td>${pill(item.status)}</td></tr>`).join("")}</tbody></table></div>` : emptyWorkflow("尚无挑战版本");
+
+  el("optimize-release-summary").textContent = `${releases.length} 次发布 · ${observations.filter((item) => item.phase === "after").length} 个观察窗口`;
+  if (releases.length) {
+    const latestEvaluation = new Map();
+    evaluations.forEach((item) => { if (!latestEvaluation.has(item.release_id)) latestEvaluation.set(item.release_id, item); });
+    el("optimize-releases").innerHTML = `<div class="table-wrap"><table><thead><tr><th>图位</th><th>上线时间</th><th>状态</th><th>观察</th><th>干扰事件</th><th>决策</th></tr></thead><tbody>${releases.map((release) => {
+      const releaseObservations = observations.filter((item) => item.release_id === release.release_id);
+      const releaseEvents = events.filter((item) => item.release_id === release.release_id || item.release_id === null);
+      const evaluation = latestEvaluation.get(release.release_id);
+      return `<tr><td><strong>${escapeHtml(release.slot_key)}</strong></td><td>${escapeHtml(release.published_at)}</td><td>${pill(release.status)}</td><td>${releaseObservations.length}</td><td>${releaseEvents.length}${releaseEvents.some((item) => item.status === "open") ? " · 未关闭" : ""}</td><td>${evaluation ? pill(evaluation.decision) : "待观察"}</td></tr>`;
+    }).join("")}</tbody></table></div>`;
+  } else {
+    el("optimize-releases").innerHTML = emptyWorkflow("挑战图通过 QC 并实际上线后，记录准确发布时间");
+  }
+  setOptimizeActionState();
+}
+
+function setOptimizeActionState() {
+  const optimize = state.optimize;
+  const gateReady = Boolean(optimize?.diagnostic && optimize?.readiness?.diagnosis_status === "passed");
+  document.querySelectorAll("[data-optimize-gate-status]").forEach((button) => { button.disabled = !gateReady; });
+  const contracts = optimize?.contracts || [];
+  el("optimize-queue-button").disabled = !(
+    contracts.length
+    && optimize?.readiness?.generation_status === "passed"
+    && optimize?.gate?.status === "approved"
+    && contracts.every((item) => item.status === "ready")
+  );
 }
 
 function emptyWorkflow(message) {
@@ -240,10 +327,14 @@ function setLaunchActionState() {
 
 function setActiveTab(tab) {
   const isLaunch = state.project?.project?.project_mode === "launch";
-  state.activeTab = tab === "launch" && !isLaunch ? "studio" : tab;
-  document.querySelector(".app-shell").classList.toggle("planning-mode", state.activeTab === "launch");
+  const isOptimize = state.project?.project?.project_mode === "optimize";
+  if (tab === "launch" && !isLaunch) state.activeTab = "studio";
+  else if (tab === "optimize" && !isOptimize) state.activeTab = "studio";
+  else state.activeTab = tab;
+  document.querySelector(".app-shell").classList.toggle("planning-mode", ["launch", "optimize"].includes(state.activeTab));
   document.querySelectorAll("[data-tab]").forEach((item) => item.classList.toggle("active", item.dataset.tab === state.activeTab));
   el("launch-panel").classList.toggle("hidden", state.activeTab !== "launch");
+  el("optimize-panel").classList.toggle("hidden", state.activeTab !== "optimize");
   el("studio-panel").classList.toggle("hidden", state.activeTab !== "studio");
   el("quality-panel").classList.toggle("hidden", state.activeTab !== "quality");
 }
@@ -389,6 +480,9 @@ async function refreshProject(selectedAssetId = state.selectedAssetId) {
   state.project = await api(`/api/projects/${encodeURIComponent(state.projectId)}`);
   state.launch = state.project.project.project_mode === "launch"
     ? await api(`/api/projects/${encodeURIComponent(state.projectId)}/launch`)
+    : null;
+  state.optimize = state.project.project.project_mode === "optimize"
+    ? await api(`/api/projects/${encodeURIComponent(state.projectId)}/optimize`)
     : null;
   state.selectedAssetId = selectedAssetId;
   renderProject();
@@ -544,6 +638,46 @@ el("launch-queue-button").addEventListener("click", async () => {
     await api(`/api/projects/${encodeURIComponent(state.projectId)}/launch/contracts/queue`, { method: "POST" });
     await refreshProject();
     toast("Image Contracts 已进入生成队列");
+  } catch (error) { toast(error.message); }
+});
+
+el("optimize-import-button").addEventListener("click", () => {
+  el("optimize-intake-input").value = "";
+  el("optimize-intake-input").click();
+});
+
+el("optimize-intake-input").addEventListener("change", async (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+  try {
+    const intake = JSON.parse(await file.text());
+    await api(`/api/projects/${encodeURIComponent(state.projectId)}/optimize/intake`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ intake, source_type: "ui_json" }),
+    });
+    await refreshProject();
+    toast("Listing 快照已导入");
+  } catch (error) { toast(error.message); }
+});
+
+document.querySelectorAll("[data-optimize-gate-status]").forEach((button) => button.addEventListener("click", async () => {
+  try {
+    await api(`/api/projects/${encodeURIComponent(state.projectId)}/optimize/gate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: button.dataset.optimizeGateStatus, decision: { source: "workbench_ui" } }),
+    });
+    await refreshProject();
+    toast(button.dataset.optimizeGateStatus === "approved" ? "诊断已批准" : "已要求修改");
+  } catch (error) { toast(error.message); }
+}));
+
+el("optimize-queue-button").addEventListener("click", async () => {
+  try {
+    await api(`/api/projects/${encodeURIComponent(state.projectId)}/optimize/contracts/queue`, { method: "POST" });
+    await refreshProject();
+    toast("挑战版本已进入生成队列");
   } catch (error) { toast(error.message); }
 });
 

@@ -248,6 +248,113 @@ def queue_image_contracts(project_id: str, actor: str = "user") -> dict[str, Any
     return app.queue_image_contracts(project_id, actor)
 
 
+@mcp.tool()
+def import_optimization_intake(
+    project_id: str,
+    intake: dict[str, Any],
+    source_type: str = "codex_normalized",
+    actor: str = "codex",
+) -> dict[str, Any]:
+    """Import a P2 current Listing snapshot, verified product inputs, evidence, and baseline observations."""
+    return app.import_optimization_intake(project_id, intake, source_type, actor)
+
+
+@mcp.tool()
+def get_optimization_workspace(project_id: str) -> dict[str, Any]:
+    """Get P2 Listing version, readiness, diagnosis Gate, challenges, releases, observations, and evaluations."""
+    return app.get_optimization_workspace(project_id)
+
+
+@mcp.tool()
+def save_optimization_diagnosis(
+    project_id: str,
+    diagnosis: dict[str, Any],
+    actor: str = "codex",
+) -> dict[str, Any]:
+    """Save an evidence-linked P2 diagnosis without treating correlation as image causation."""
+    return app.save_optimization_diagnosis(project_id, diagnosis, actor)
+
+
+@mcp.tool()
+def decide_optimization_gate(
+    project_id: str,
+    status: str,
+    decision: dict[str, Any] | None = None,
+    actor: str = "user",
+) -> dict[str, Any]:
+    """Approve or request changes to the P2 diagnosis before challenge creation."""
+    return app.decide_optimization_gate(project_id, status, decision or {}, actor)
+
+
+@mcp.tool()
+def save_optimization_contracts(
+    project_id: str,
+    contracts: dict[str, Any],
+    actor: str = "codex",
+) -> dict[str, Any]:
+    """Save one-variable P2 challenge contracts and calculate their generation readiness."""
+    return app.save_optimization_contracts(project_id, contracts, actor)
+
+
+@mcp.tool()
+def queue_optimization_contracts(project_id: str, actor: str = "user") -> dict[str, Any]:
+    """Compile ready P2 challenge contracts into the shared resumable generation queue."""
+    return app.queue_optimization_contracts(project_id, actor)
+
+
+@mcp.tool()
+def record_optimization_release(
+    project_id: str,
+    release: dict[str, Any],
+    actor: str = "user",
+) -> dict[str, Any]:
+    """Record the exact publication time of a QC-approved challenge image."""
+    return app.record_optimization_release(project_id, release, actor)
+
+
+@mcp.tool()
+def add_optimization_observation(
+    project_id: str,
+    release_id: str,
+    observation: dict[str, Any],
+    actor: str = "codex",
+) -> dict[str, Any]:
+    """Add a post-release metric window with explicit source and source class."""
+    return app.add_optimization_observation(project_id, release_id, observation, actor)
+
+
+@mcp.tool()
+def add_optimization_interference_event(
+    project_id: str,
+    event: dict[str, Any],
+    actor: str = "user",
+) -> dict[str, Any]:
+    """Record price, promotion, ads, inventory, reviews, or other attribution interference."""
+    return app.add_optimization_interference_event(project_id, event, actor)
+
+
+@mcp.tool()
+def resolve_optimization_interference_event(
+    project_id: str,
+    interference_event_id: str,
+    ended_at: str,
+    actor: str = "user",
+) -> dict[str, Any]:
+    """Close an interference event so a clean evaluation can proceed."""
+    return app.resolve_optimization_interference_event(project_id, interference_event_id, ended_at, actor)
+
+
+@mcp.tool()
+def evaluate_optimization_release(
+    project_id: str,
+    release_id: str,
+    evaluation: dict[str, Any],
+    actor: str = "user",
+) -> dict[str, Any]:
+    """Record keep, rollback, or inconclusive after checking comparable metrics and open interference."""
+    return app.evaluate_optimization_release(project_id, release_id, evaluation, actor)
+
+
 def main() -> None:
     mcp.run(transport="stdio")
 
