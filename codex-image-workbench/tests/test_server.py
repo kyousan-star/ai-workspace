@@ -7,7 +7,7 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 
 from workbench.core import Workbench
-from workbench.server import Handler
+from workbench.server import Handler, media_type
 
 
 class ServerTests(unittest.TestCase):
@@ -123,6 +123,11 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(project_id, launch_read["project_id"])
         _, dashboard = self.request("/api/dashboard")
         self.assertEqual(1, dashboard["counts"]["active_projects"])
+
+    def test_media_type_uses_image_signature_for_mislabeled_file(self):
+        image = Path(self.temp.name) / "amazon-aplus.png"
+        image.write_bytes(b"\xff\xd8\xff\xc0\x00\x07\x08\x00\x01\x00\x01")
+        self.assertEqual("image/jpeg", media_type(image))
 
 
 if __name__ == "__main__":

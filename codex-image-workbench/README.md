@@ -65,9 +65,10 @@ for Seller Central Sessions or Unit Session Percentage and do not establish
 image causation. The browser exposes this workflow under `Optimize Plan`; eleven
 P2 MCP tools and matching CLI/HTTP operations use the same SQLite state.
 
-The first real project is PH204 for Amazon AE. Its evidence-linked diagnosis is
-at the human Gate, while challenge generation remains blocked because only the
-live MAIN image has been captured. See `P2-STATUS.md`.
+The first real project is PH204 for Amazon AE. ListingVersion v2 contains the
+complete eight-image Listing sequence and seven A+ modules. Generation readiness
+passes, while diagnosis v2 remains at the human Gate before any challenge is
+queued. See `P2-STATUS.md`.
 
 ## Codex Plugin
 

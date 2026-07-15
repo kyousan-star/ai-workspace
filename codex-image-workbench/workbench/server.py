@@ -13,12 +13,26 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 from . import __version__
 from .core import Workbench
-from .util import WorkbenchError
+from .util import WorkbenchError, image_metadata
 
 
 DEFAULT_ROOT = Path(__file__).resolve().parents[1]
 MAX_JSON_BODY = 2 * 1024 * 1024
 MAX_UPLOAD_BODY = 80 * 1024 * 1024
+
+IMAGE_MIME_TYPES = {
+    "jpeg": "image/jpeg",
+    "jpg": "image/jpeg",
+    "png": "image/png",
+    "webp": "image/webp",
+}
+
+
+def media_type(path: Path) -> str:
+    guessed = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+    if not guessed.startswith("image/"):
+        return guessed
+    return IMAGE_MIME_TYPES.get(str(image_metadata(path).get("format", "")).lower(), guessed)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -42,7 +56,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(HTTPStatus.NOT_FOUND)
             return
         payload = path.read_bytes()
-        mime = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+        mime = media_type(path)
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", mime)
         self.send_header("Content-Length", str(len(payload)))
