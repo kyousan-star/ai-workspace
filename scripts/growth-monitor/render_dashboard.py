@@ -4,6 +4,7 @@ from __future__ import annotations
 import csv
 import html
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
@@ -14,7 +15,11 @@ OUTPUT_DIR = ROOT / "output"
 METRICS_CSV = DATA_DIR / "daily_metrics.csv"
 UTM_CSV = DATA_DIR / "pinterest_utm_plan.csv"
 SOURCE_STATUS_CSV = DATA_DIR / "source_status.csv"
+GSC_PAGE_QUERY_CSV = DATA_DIR / "gsc_page_queries.csv"
 REDDIT_CSV = DATA_DIR / "reddit_engagement_log.csv"
+AI_DISCOVERY_CSV = DATA_DIR / "ai_discovery_status.csv"
+AI_PROMPT_CSV = DATA_DIR / "ai_prompt_panel.csv"
+LINKTREE_CSV = DATA_DIR / "linktree_metrics.csv"
 OUTPUT_HTML = OUTPUT_DIR / "VLOGARA-growth-dashboard.html"
 
 
@@ -29,6 +34,8 @@ class DailyMetric:
     shopify_collection_views: Optional[float]
     shopify_blog_views: Optional[float]
     organic_search_sessions: Optional[float]
+    chatgpt_sessions: Optional[float]
+    gemini_sessions: Optional[float]
     google_search_impressions: Optional[float]
     google_search_clicks: Optional[float]
     buy_on_amazon_clicks: Optional[float]
@@ -45,6 +52,22 @@ class DailyMetric:
     video_to_amazon_clicks: Optional[float]
     video_play_rate: Optional[float]
     video_completion_rate: Optional[float]
+    st102_pdp_users: Optional[float]
+    st102_video_start_users: Optional[float]
+    st102_video_50_users: Optional[float]
+    st102_video_complete_users: Optional[float]
+    st102_video_started_amazon_click_users: Optional[float]
+    st102_video_completed_amazon_click_users: Optional[float]
+    st102_video_play_rate: Optional[float]
+    st102_video_completion_rate: Optional[float]
+    vt101_pdp_users: Optional[float]
+    vt101_video_start_users: Optional[float]
+    vt101_video_50_users: Optional[float]
+    vt101_video_complete_users: Optional[float]
+    vt101_video_started_amazon_click_users: Optional[float]
+    vt101_video_completed_amazon_click_users: Optional[float]
+    vt101_video_play_rate: Optional[float]
+    vt101_video_completion_rate: Optional[float]
     pinterest_impressions: Optional[float]
     pinterest_outbound_clicks: Optional[float]
     pinterest_outbound_ctr: Optional[float]
@@ -130,6 +153,8 @@ def read_metrics() -> list[DailyMetric]:
                     shopify_collection_views=parse_number(row.get("shopify_collection_views", "")),
                     shopify_blog_views=parse_number(row.get("shopify_blog_views", "")),
                     organic_search_sessions=parse_number(row.get("organic_search_sessions", "")),
+                    chatgpt_sessions=parse_number(row.get("chatgpt_sessions", "")),
+                    gemini_sessions=parse_number(row.get("gemini_sessions", "")),
                     google_search_impressions=parse_number(row.get("google_search_impressions", "")),
                     google_search_clicks=parse_number(row.get("google_search_clicks", "")),
                     buy_on_amazon_clicks=parse_number(row.get("buy_on_amazon_clicks", "")),
@@ -146,6 +171,22 @@ def read_metrics() -> list[DailyMetric]:
                     video_to_amazon_clicks=parse_number(row.get("video_to_amazon_clicks", "")),
                     video_play_rate=parse_number(row.get("video_play_rate", "")),
                     video_completion_rate=parse_number(row.get("video_completion_rate", "")),
+                    st102_pdp_users=parse_number(row.get("st102_pdp_users", "")),
+                    st102_video_start_users=parse_number(row.get("st102_video_start_users", "")),
+                    st102_video_50_users=parse_number(row.get("st102_video_50_users", "")),
+                    st102_video_complete_users=parse_number(row.get("st102_video_complete_users", "")),
+                    st102_video_started_amazon_click_users=parse_number(row.get("st102_video_started_amazon_click_users", "")),
+                    st102_video_completed_amazon_click_users=parse_number(row.get("st102_video_completed_amazon_click_users", "")),
+                    st102_video_play_rate=parse_number(row.get("st102_video_play_rate", "")),
+                    st102_video_completion_rate=parse_number(row.get("st102_video_completion_rate", "")),
+                    vt101_pdp_users=parse_number(row.get("vt101_pdp_users", "")),
+                    vt101_video_start_users=parse_number(row.get("vt101_video_start_users", "")),
+                    vt101_video_50_users=parse_number(row.get("vt101_video_50_users", "")),
+                    vt101_video_complete_users=parse_number(row.get("vt101_video_complete_users", "")),
+                    vt101_video_started_amazon_click_users=parse_number(row.get("vt101_video_started_amazon_click_users", "")),
+                    vt101_video_completed_amazon_click_users=parse_number(row.get("vt101_video_completed_amazon_click_users", "")),
+                    vt101_video_play_rate=parse_number(row.get("vt101_video_play_rate", "")),
+                    vt101_video_completion_rate=parse_number(row.get("vt101_video_completion_rate", "")),
                     pinterest_impressions=parse_number(row.get("pinterest_impressions", "")),
                     pinterest_outbound_clicks=parse_number(row.get("pinterest_outbound_clicks", "")),
                     pinterest_outbound_ctr=parse_number(row.get("pinterest_outbound_ctr", "")),
@@ -167,6 +208,58 @@ def read_source_status_rows() -> list[dict[str, str]]:
         return []
     with SOURCE_STATUS_CSV.open(newline="", encoding="utf-8") as handle:
         return list(csv.DictReader(handle))
+
+
+def read_csv_if_exists(path: Path) -> list[dict[str, str]]:
+    if not path.exists():
+        return []
+    with path.open(newline="", encoding="utf-8") as handle:
+        return list(csv.DictReader(handle))
+
+
+def read_gsc_page_query_rows() -> list[dict[str, str]]:
+    if not GSC_PAGE_QUERY_CSV.exists():
+        return []
+    with GSC_PAGE_QUERY_CSV.open(newline="", encoding="utf-8") as handle:
+        return list(csv.DictReader(handle))
+
+
+def gsc_page_query_table_rows(rows: list[dict[str, str]]) -> tuple[str, str]:
+    """聚合最近 14 个自然日，展示每篇博客的查询词表现。"""
+    if not rows:
+        return "尚无可披露的 page × query 数据", '<tr><td colspan="8">GSC 暂无可披露的博客查询词；极低量或匿名查询可能不会返回。</td></tr>'
+    latest_date = max(row.get("date", "") for row in rows)
+    cutoff = (datetime.strptime(latest_date, "%Y-%m-%d").date() - timedelta(days=13)).isoformat()
+    aggregated: dict[tuple[str, str, str, str], dict[str, float | str]] = {}
+    for row in rows:
+        if row.get("date", "") < cutoff:
+            continue
+        key = (row.get("product", ""), row.get("blog", ""), row.get("page", ""), row.get("query", ""))
+        rec = aggregated.setdefault(key, {"clicks": 0.0, "impressions": 0.0, "weighted_position": 0.0})
+        impressions = parse_number(row.get("impressions", "")) or 0
+        rec["clicks"] = float(rec["clicks"]) + (parse_number(row.get("clicks", "")) or 0)
+        rec["impressions"] = float(rec["impressions"]) + impressions
+        rec["weighted_position"] = float(rec["weighted_position"]) + (parse_number(row.get("position", "")) or 0) * impressions
+    output = []
+    ordered = sorted(aggregated.items(), key=lambda item: (-float(item[1]["impressions"]), item[0][0], item[0][1], item[0][3]))
+    for (product, blog, page, query), rec in ordered[:50]:
+        impressions = float(rec["impressions"])
+        clicks = float(rec["clicks"])
+        ctr = clicks / impressions if impressions else 0
+        position = float(rec["weighted_position"]) / impressions if impressions else 0
+        output.append(
+            "<tr>"
+            f"<td>{html.escape(product)}</td>"
+            f"<td>{html.escape(blog)}</td>"
+            f"<td><a href=\"{html.escape(page)}\">page</a></td>"
+            f"<td>{html.escape(query)}</td>"
+            f"<td>{format_number(impressions)}</td>"
+            f"<td>{format_number(clicks)}</td>"
+            f"<td>{format_number(ctr, 'percent')}</td>"
+            f"<td>{position:.1f}</td>"
+            "</tr>"
+        )
+    return f"{cutoff} 至 {latest_date}（GSC 可能省略匿名/极低量查询）", "\n".join(output)
 
 
 def read_reddit_rows() -> list[dict[str, str]]:
@@ -288,6 +381,8 @@ def table_rows(metrics: list[DailyMetric]) -> str:
             f"<td>{format_number(buy_rate(row), 'percent')}</td>"
             f"<td>{format_number(row.google_search_impressions)}</td>"
             f"<td>{format_number(row.google_search_clicks)}</td>"
+            f"<td>{format_number(row.chatgpt_sessions)}</td>"
+            f"<td>{format_number(row.gemini_sessions)}</td>"
             f"<td>{format_number(row.pinterest_outbound_clicks)}</td>"
             f"<td>{html.escape(row.notes)}</td>"
             "</tr>"
@@ -327,10 +422,86 @@ def source_status_table_rows(rows: list[dict[str, str]]) -> str:
     return "\n".join(output)
 
 
+def latest_two_linktree_rows(
+    rows: list[dict[str, str]], window: str
+) -> tuple[Optional[dict[str, str]], Optional[dict[str, str]]]:
+    matching = sorted(
+        (row for row in rows if row.get("window", "").strip() == window),
+        key=lambda row: row.get("date", ""),
+    )
+    if not matching:
+        return None, None
+    return matching[-1], matching[-2] if len(matching) > 1 else None
+
+
+def linktree_snapshot_table_rows(rows: list[dict[str, str]]) -> str:
+    if not rows:
+        return '<tr><td colspan="8">尚未录入 Linktree 登录后数据快照。</td></tr>'
+    output = []
+    for row in reversed(sorted(rows, key=lambda item: (item.get("date", ""), item.get("window", "")))):
+        output.append(
+            "<tr>"
+            f"<td>{html.escape(row.get('date', ''))}</td>"
+            f"<td>{html.escape(row.get('window', ''))}</td>"
+            f"<td>{format_number(parse_number(row.get('views', '')))}</td>"
+            f"<td>{format_number(parse_number(row.get('clicks', '')))}</td>"
+            f"<td>{format_number(parse_number(row.get('click_rate', '')), 'percent')}</td>"
+            f"<td>{format_number(parse_number(row.get('amazon_button_clicks', '')))}</td>"
+            f"<td>{html.escape(row.get('source', ''))}</td>"
+            f"<td>{html.escape(row.get('notes', ''))}</td>"
+            "</tr>"
+        )
+    return "\n".join(output)
+
+
+def ai_discovery_table_rows(rows: list[dict[str, str]]) -> str:
+    if not rows:
+        return '<tr><td colspan="6">尚未运行 AI discovery check。</td></tr>'
+    output = []
+    for row in rows:
+        output.append(
+            "<tr>"
+            f"<td>{html.escape(row.get('source', ''))}</td>"
+            f"<td><span class=\"status\">{html.escape(row.get('status', ''))}</span></td>"
+            f"<td>{html.escape(row.get('http_status', ''))}</td>"
+            f"<td>{html.escape(row.get('summary', ''))}</td>"
+            f"<td>{html.escape(row.get('blocker', ''))}</td>"
+            f"<td>{html.escape(row.get('next_action', ''))}</td>"
+            "</tr>"
+        )
+    return "\n".join(output)
+
+
+def ai_prompt_table_rows(rows: list[dict[str, str]]) -> str:
+    if not rows:
+        return '<tr><td colspan="9">尚未建立 AI prompt panel。</td></tr>'
+    output = []
+    for row in rows:
+        output.append(
+            "<tr>"
+            f"<td>{html.escape(row.get('prompt_id', ''))}</td>"
+            f"<td>{html.escape(row.get('buyer_query', ''))}</td>"
+            f"<td>{html.escape(row.get('intent', ''))}</td>"
+            f"<td>{html.escape(row.get('last_checked', '') or '未跑基线')}</td>"
+            f"<td>{html.escape(row.get('chatgpt_brand_mentioned', '') or '待测')}</td>"
+            f"<td>{html.escape(row.get('chatgpt_cited_url', '') or '待测')}</td>"
+            f"<td>{html.escape(row.get('gemini_brand_mentioned', '') or '待测')}</td>"
+            f"<td>{html.escape(row.get('gemini_cited_url', '') or '待测')}</td>"
+            f"<td>{html.escape(row.get('notes', ''))}</td>"
+            "</tr>"
+        )
+    return "\n".join(output)
+
+
 def render() -> str:
     metrics = read_metrics()
     utm_rows = read_utm_rows()
     source_status_rows = read_source_status_rows()
+    ai_discovery_rows = read_csv_if_exists(AI_DISCOVERY_CSV)
+    ai_prompt_rows = read_csv_if_exists(AI_PROMPT_CSV)
+    linktree_rows = read_csv_if_exists(LINKTREE_CSV)
+    gsc_page_query_rows = read_gsc_page_query_rows()
+    gsc_page_query_window, gsc_page_query_html = gsc_page_query_table_rows(gsc_page_query_rows)
     reddit_rows = read_reddit_rows()
     pin_metrics_file, pin_metric_rows = read_pin_metric_rows()
     latest, previous = latest_complete(metrics)
@@ -339,6 +510,8 @@ def render() -> str:
     reddit_review = sum(1 for row in reddit_rows if row.get("status") != "posted")
     reddit_karma = sum(reddit_number(row.get("karma", "")) for row in reddit_rows)
     reddit_replies = sum(reddit_number(row.get("followup_replies", "")) for row in reddit_rows)
+    linktree_latest, linktree_previous = latest_two_linktree_rows(linktree_rows, "last_7_days")
+    linktree_lifetime, _ = latest_two_linktree_rows(linktree_rows, "lifetime")
 
     latest_date = latest.date if latest else "待录入"
     shopify_cards = [
@@ -431,44 +604,109 @@ def render() -> str:
             "博客 CTA 点击",
         ),
     ]
-    video_cards = [
+    def linktree_value(row: Optional[dict[str, str]], field: str) -> Optional[float]:
+        return parse_number(row.get(field, "")) if row else None
+
+    linktree_cards = [
         metric_card(
-            "VT101 video starts",
-            format_number(latest.video_starts if latest else None),
-            delta(latest.video_starts if latest else None, previous.video_starts if previous else None),
-            "点击播放次数",
+            "Linktree views",
+            format_number(linktree_value(linktree_latest, "views")),
+            delta(linktree_value(linktree_latest, "views"), linktree_value(linktree_previous, "views")),
+            "社媒主页点击进入 Linktree",
         ),
         metric_card(
-            "Video play rate",
-            format_number(latest.video_play_rate if latest else None, "percent"),
-            delta(latest.video_play_rate if latest else None, previous.video_play_rate if previous else None, "percent"),
-            "播放 / VT101 页面浏览",
+            "Linktree clicks",
+            format_number(linktree_value(linktree_latest, "clicks")),
+            delta(linktree_value(linktree_latest, "clicks"), linktree_value(linktree_previous, "clicks")),
+            "Linktree 内任意按钮点击",
         ),
         metric_card(
-            "50% views",
-            format_number(latest.video_50_views if latest else None),
-            delta(latest.video_50_views if latest else None, previous.video_50_views if previous else None),
-            "观看至少一半",
+            "Linktree click rate",
+            format_number(linktree_value(linktree_latest, "click_rate"), "percent"),
+            delta(linktree_value(linktree_latest, "click_rate"), linktree_value(linktree_previous, "click_rate"), "percent"),
+            "按钮点击 / Linktree views",
         ),
         metric_card(
-            "Video completes",
-            format_number(latest.video_completes if latest else None),
-            delta(latest.video_completes if latest else None, previous.video_completes if previous else None),
-            "完整观看次数",
-        ),
-        metric_card(
-            "Completion rate",
-            format_number(latest.video_completion_rate if latest else None, "percent"),
-            delta(latest.video_completion_rate if latest else None, previous.video_completion_rate if previous else None, "percent"),
-            "完播 / 开始播放",
-        ),
-        metric_card(
-            "After-video Amazon clicks",
-            format_number(latest.video_to_amazon_clicks if latest else None),
-            delta(latest.video_to_amazon_clicks if latest else None, previous.video_to_amazon_clicks if previous else None),
-            "开始观看后点击 Amazon",
+            "Amazon button clicks",
+            format_number(linktree_value(linktree_latest, "amazon_button_clicks")),
+            delta(
+                linktree_value(linktree_latest, "amazon_button_clicks"),
+                linktree_value(linktree_previous, "amazon_button_clicks"),
+            ),
+            "Linktree Amazon 商品按钮点击",
         ),
     ]
+    ai_referral_cards = [
+        metric_card(
+            "ChatGPT referral sessions",
+            format_number(latest.chatgpt_sessions if latest else None),
+            delta(latest.chatgpt_sessions if latest else None, previous.chatgpt_sessions if previous else None),
+            "GA4 sessionSource 含 chatgpt；不等同于被引用",
+        ),
+        metric_card(
+            "Gemini referral sessions",
+            format_number(latest.gemini_sessions if latest else None),
+            delta(latest.gemini_sessions if latest else None, previous.gemini_sessions if previous else None),
+            "GA4 sessionSource 含 gemini；不等同于被引用",
+        ),
+    ]
+    def product_video_cards(prefix: str, label: str) -> list[str]:
+        def value(row: Optional[DailyMetric], suffix: str) -> Optional[float]:
+            return getattr(row, f"{prefix}_{suffix}") if row else None
+
+        return [
+            metric_card(
+                f"{label} PDP users",
+                format_number(value(latest, "pdp_users")),
+                delta(value(latest, "pdp_users"), value(previous, "pdp_users")),
+                "产品页唯一用户",
+            ),
+            metric_card(
+                f"{label} video start users",
+                format_number(value(latest, "video_start_users")),
+                delta(value(latest, "video_start_users"), value(previous, "video_start_users")),
+                "启动视频的唯一用户",
+            ),
+            metric_card(
+                f"{label} play rate",
+                format_number(value(latest, "video_play_rate"), "percent"),
+                delta(value(latest, "video_play_rate"), value(previous, "video_play_rate"), "percent"),
+                "启动用户 / PDP 用户",
+            ),
+            metric_card(
+                f"{label} 50% users",
+                format_number(value(latest, "video_50_users")),
+                delta(value(latest, "video_50_users"), value(previous, "video_50_users")),
+                "观看至少一半的唯一用户",
+            ),
+            metric_card(
+                f"{label} complete users",
+                format_number(value(latest, "video_complete_users")),
+                delta(value(latest, "video_complete_users"), value(previous, "video_complete_users")),
+                "完整观看的唯一用户",
+            ),
+            metric_card(
+                f"{label} completion rate",
+                format_number(value(latest, "video_completion_rate"), "percent"),
+                delta(value(latest, "video_completion_rate"), value(previous, "video_completion_rate"), "percent"),
+                "完播用户 / 启动用户",
+            ),
+            metric_card(
+                f"{label} started → Amazon",
+                format_number(value(latest, "video_started_amazon_click_users")),
+                delta(value(latest, "video_started_amazon_click_users"), value(previous, "video_started_amazon_click_users")),
+                "启动视频后点击 Amazon 的用户",
+            ),
+            metric_card(
+                f"{label} completed → Amazon",
+                format_number(value(latest, "video_completed_amazon_click_users")),
+                delta(value(latest, "video_completed_amazon_click_users"), value(previous, "video_completed_amazon_click_users")),
+                "完播后点击 Amazon 的用户",
+            ),
+        ]
+
+    st102_video_cards = product_video_cards("st102", "ST102")
+    vt101_video_cards = product_video_cards("vt101", "VT101")
     pinterest_cards = [
         metric_card(
             "Pinterest impressions",
@@ -665,11 +903,71 @@ def render() -> str:
       </table>
     </section>
 
+    <section class="panel">
+      <h2>AI Discovery Health</h2>
+      <p>检查 AI 搜索可读取的公开入口、机器可读购买口径与产品事实。PASS 只代表可访问且口径一致，不代表 ChatGPT 或 Gemini 已经引用。</p>
+      <table>
+        <thead>
+          <tr><th>Source</th><th>Status</th><th>HTTP</th><th>Summary</th><th>Blocker</th><th>Next action</th></tr>
+        </thead>
+        <tbody>{ai_discovery_table_rows(ai_discovery_rows)}</tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>AI Referral Traffic</h2>
+      <div class="metrics">{''.join(ai_referral_cards)}</div>
+    </section>
+
+    <section class="panel">
+      <h2>AI Visibility Prompt Panel</h2>
+      <p>每月固定同一组英文 buyer queries，分别记录品牌是否出现、引用 URL 与事实准确性。当前留空代表未跑基线，不能解读为“未被收录”。</p>
+      <table>
+        <thead>
+          <tr><th>ID</th><th>Buyer query</th><th>Intent</th><th>Last checked</th><th>ChatGPT mention</th><th>ChatGPT source</th><th>Gemini mention</th><th>Gemini source</th><th>Notes</th></tr>
+        </thead>
+        <tbody>{ai_prompt_table_rows(ai_prompt_rows)}</tbody>
+      </table>
+    </section>
+
     <section>
       <h2>Shopify Page Demand</h2>
       <div class="metrics compact">
         {''.join(page_cards)}
       </div>
+    </section>
+
+    <section class="panel">
+      <h2>Google SEO — Blog Page × Query</h2>
+      <p>{html.escape(gsc_page_query_window)}。按 14 天聚合，Position 为展示量加权平均；样本很小时只观察，不据此立即改标题或正文。</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Product</th><th>Blog</th><th>Page</th><th>Query</th><th>Impressions</th><th>Clicks</th><th>CTR</th><th>Position</th>
+          </tr>
+        </thead>
+        <tbody>
+          {gsc_page_query_html}
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Linktree Bio Funnel</h2>
+      <p>这是社媒曝光之后、Amazon 跳转之前的独立漏斗。当前卡片使用最近 7 天快照；累计基线为 {format_number(linktree_value(linktree_lifetime, 'views'))} views / {format_number(linktree_value(linktree_lifetime, 'clicks'))} clicks。现阶段通过已登录后台手工快照更新，不冒充 API 自动采集。</p>
+      <div class="metrics compact">
+        {''.join(linktree_cards)}
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Linktree Snapshot Log</h2>
+      <table>
+        <thead>
+          <tr><th>Date</th><th>Window</th><th>Views</th><th>Clicks</th><th>Click rate</th><th>Amazon clicks</th><th>Source</th><th>Notes</th></tr>
+        </thead>
+        <tbody>{linktree_snapshot_table_rows(linktree_rows)}</tbody>
+      </table>
     </section>
 
     <section>
@@ -680,9 +978,16 @@ def render() -> str:
     </section>
 
     <section>
-      <h2>VT101 Sponsored Video Engagement</h2>
+      <h2>ST102 Video Engagement — clean baseline from 2026-07-13</h2>
       <div class="metrics">
-        {''.join(video_cards)}
+        {''.join(st102_video_cards)}
+      </div>
+    </section>
+
+    <section>
+      <h2>VT101 Sponsored Video Engagement — clean baseline from 2026-07-13</h2>
+      <div class="metrics">
+        {''.join(vt101_video_cards)}
       </div>
     </section>
 
@@ -745,7 +1050,7 @@ def render() -> str:
       <table>
         <thead>
           <tr>
-            <th>Date</th><th>Sessions</th><th>Page views</th><th>PDP views</th><th>Amazon clicks</th><th>Buy click rate</th><th>Google impressions</th><th>Google clicks</th><th>Pin outbound clicks</th><th>Notes</th>
+            <th>Date</th><th>Sessions</th><th>Page views</th><th>PDP views</th><th>Amazon clicks</th><th>Buy click rate</th><th>Google impressions</th><th>Google clicks</th><th>ChatGPT sessions</th><th>Gemini sessions</th><th>Pin outbound clicks</th><th>Notes</th>
           </tr>
         </thead>
         <tbody>
@@ -769,7 +1074,7 @@ def render() -> str:
     </section>
 
     <footer>
-      <p>Generated from <code>codex/growth-monitor/data/daily_metrics.csv</code>. Rebuild with <code>python3 codex/growth-monitor/scripts/render_dashboard.py</code>.</p>
+      <p>Generated from <code>daily_metrics.csv</code>, <code>linktree_metrics.csv</code>, <code>gsc_page_queries.csv</code>, <code>ai_discovery_status.csv</code>, and <code>ai_prompt_panel.csv</code>. Rebuild with <code>python3 codex/growth-monitor/scripts/render_dashboard.py</code>.</p>
     </footer>
   </main>
 </body>

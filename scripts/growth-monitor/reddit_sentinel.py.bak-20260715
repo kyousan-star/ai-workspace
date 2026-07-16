@@ -8,11 +8,10 @@
    （只筛不判断，正式判断和草稿在会话「跑 Vlogara Reddit 日常」里做）
 
 两块依赖不同，互不拖累：
-- 补弹粗筛：先 urllib 直抓 old.reddit HTML；2026-07-15 起 reddit 对直连 HTML 也返 403，
-  被封的 sub 用回查同一条 Chrome 通道补抓（fetch_new_listing_via_tab）。
+- 补弹粗筛：urllib 直连公开 /r/{sub}/new.json，无需登录，定时可无人值守。
 - 回查已发评论：需 web-access CDP proxy（localhost:3456，本机 Chrome 登录态）。
-  proxy 不可用时跳过回查（飞书标注「会话补」），直抓成功的 sub 候选照常产出。
-  会话触发「跑 Vlogara Reddit 日常」时 Chrome 在，回查+补抓随之补上。
+  proxy 不可用时只跳过回查（飞书标注「会话补」），候选粗筛照常产出，不再整体降级退出。
+  会话触发「跑 Vlogara Reddit 日常」时 Chrome 在，回查随之补上。
 
 输出：
 - data/reddit_sentinel_feishu.txt   首行 DATE:YYYY-MM-DD，其余为飞书消息行
@@ -246,81 +245,50 @@ def fetch_new_listing(sub: str) -> list:
     return parser.posts
 
 
-# Chrome 补抓用：字段口径对齐 fetch_new_listing（created_utc 秒 / num_comments / permalink）
-SCAN_SUB_JS = """
-(() => {
-  const posts = [...document.querySelectorAll(".thing.link")]
-    .filter(el => el.getAttribute("data-promoted") !== "true" && !el.classList.contains("promoted"))
-    .map(el => ({
-      name: el.getAttribute("data-fullname") || "",
-      created_utc: parseInt(el.getAttribute("data-timestamp") || "0", 10) / 1000,
-      num_comments: parseInt(el.getAttribute("data-comments-count") || "0", 10),
-      permalink: el.getAttribute("data-permalink") || "",
-      stickied: el.classList.contains("stickied"),
-      title: el.querySelector("a.title")?.textContent || ""
-    }));
-  return JSON.stringify(posts);
-})()
-"""
-
-
-def fetch_new_listing_via_tab(tab, sub: str) -> list:
-    """直抓被封时的兜底：经 Chrome 代理打开 /r/{sub}/new/ 再取同口径字段。"""
-    tab.goto(f"https://old.reddit.com/r/{sub}/new/")
-    return json.loads(tab.eval(SCAN_SUB_JS) or "[]")
-
-
-def load_scan_filters():
+def scan_candidates():
     seen = set()
     if SEEN_FILE.exists():
         seen = set(SEEN_FILE.read_text().split())
     logged_urls = " ".join(r.get("thread_url", "") for r in csv.DictReader(open(LOG_CSV, encoding="utf-8")))
-    return seen, logged_urls
 
-
-def filter_posts(sub: str, posts: list, seen: set, logged_urls: str) -> list:
     now = datetime.now(timezone.utc).timestamp()
     candidates = []
-    for p in posts:
-        fid = p.get("name")
-        if not fid or fid in seen or p.get("stickied"):
-            continue
-        age_h = (now - p.get("created_utc", 0)) / 3600 if p.get("created_utc") else 999
-        num_c = p.get("num_comments", 0)
-        if age_h > FRESH_HOURS or num_c >= MAX_EXISTING_COMMENTS:
-            continue
-        purl = "https://old.reddit.com" + p.get("permalink", "")
-        if purl.split("?")[0].rstrip("/") in logged_urls:
-            continue
-        t = " " + p.get("title", "").lower() + " "
-        hit_clusters = [c for c, kws in CLUSTERS.items() if any(k in t for k in kws)]
-        if not hit_clusters:
-            continue
-        score = len(hit_clusters) + sum(1 for q in QUESTION_HINTS if q in t)
-        warn = "⚠️红线sub" if (sub == REDLINE_SUB and "簇1-便宜三脚架" in hit_clusters) else ""
-        candidates.append({
-            "sub": sub, "id": fid, "title": p.get("title", "").strip()[:80],
-            "url": purl, "comments": num_c,
-            "age_h": round(age_h, 1), "clusters": hit_clusters,
-            "score": score, "warn": warn,
-        })
-    return candidates
-
-
-def scan_candidates():
-    """urllib 直抓各 sub；返回 (candidates, failed_subs)，截断与 seen 落盘留给 main 合并后做。"""
-    seen, logged_urls = load_scan_filters()
-    candidates, failed_subs = [], []
     for sub in SCAN_SUBS:
         try:
             posts = fetch_new_listing(sub)
         except Exception as e:
-            log(f"r/{sub} 直抓失败（待 Chrome 补抓）：{e}")
-            failed_subs.append(sub)
+            log(f"r/{sub} 拉取失败，跳过：{e}")
             continue
-        candidates += filter_posts(sub, posts, seen, logged_urls)
+        for p in posts:
+            fid = p.get("name")
+            if not fid or fid in seen or p.get("stickied"):
+                continue
+            age_h = (now - p.get("created_utc", 0)) / 3600 if p.get("created_utc") else 999
+            num_c = p.get("num_comments", 0)
+            if age_h > FRESH_HOURS or num_c >= MAX_EXISTING_COMMENTS:
+                continue
+            purl = "https://old.reddit.com" + p.get("permalink", "")
+            if purl.split("?")[0].rstrip("/") in logged_urls:
+                continue
+            t = " " + p.get("title", "").lower() + " "
+            hit_clusters = [c for c, kws in CLUSTERS.items() if any(k in t for k in kws)]
+            if not hit_clusters:
+                continue
+            score = len(hit_clusters) + sum(1 for q in QUESTION_HINTS if q in t)
+            warn = "⚠️红线sub" if (sub == REDLINE_SUB and "簇1-便宜三脚架" in hit_clusters) else ""
+            candidates.append({
+                "sub": sub, "id": fid, "title": p.get("title", "").strip()[:80],
+                "url": purl, "comments": num_c,
+                "age_h": round(age_h, 1), "clusters": hit_clusters,
+                "score": score, "warn": warn,
+            })
         time.sleep(PAGE_INTERVAL_SEC)
-    return candidates, failed_subs
+    candidates.sort(key=lambda c: (-c["score"], c["age_h"]))
+    top = candidates[:MAX_CANDIDATES]
+    if top:
+        with open(SEEN_FILE, "a", encoding="utf-8") as f:
+            f.write("\n".join(c["id"] for c in top) + "\n")
+    return top
 
 
 # ── 输出 ─────────────────────────────────────────────────────────────────────
@@ -332,15 +300,14 @@ def write_feishu(lines):
 def main():
     OUT_DIR.mkdir(exist_ok=True)
 
-    # 补弹粗筛：先 urllib 直抓（无人值守可跑）；被封的 sub 记下来走 Chrome 补抓
+    # 补弹粗筛：公开数据、不依赖 proxy，无人值守也能跑，始终先做
     try:
-        cands, failed_subs = scan_candidates()
+        cands = scan_candidates()
     except Exception as e:
-        cands, failed_subs = [], list(SCAN_SUBS)
+        cands = []
         log(f"粗筛异常：{e}")
 
-    # 回查已发评论：需登录态 proxy；同一 Tab 顺带补抓直抓被封的 sub
-    # （2026-07-15 起 reddit 对 old.reddit HTML 直连也返 403，Chrome 通道成为粗筛主路径）
+    # 回查已发评论：需登录态 proxy；不可用则跳过（留待会话补），不拖累粗筛
     ok = total = 0
     alerts = []
     recheck_done = False
@@ -348,34 +315,16 @@ def main():
         try:
             with Tab() as tab:
                 ok, total, alerts = check_posted_comments(tab)
-                recheck_done = True
-                if failed_subs:
-                    seen, logged_urls = load_scan_filters()
-                    for sub in list(failed_subs):
-                        try:
-                            posts = fetch_new_listing_via_tab(tab, sub)
-                            cands += filter_posts(sub, posts, seen, logged_urls)
-                            failed_subs.remove(sub)
-                        except Exception as e:
-                            log(f"r/{sub} Chrome 补抓也失败：{e}")
+            recheck_done = True
         except Exception as e:
-            if not recheck_done:
-                alerts = [f"⚠️ 回查异常（{type(e).__name__}），可会话触发补查"]
-            log(f"回查/补抓异常：{e}")
+            alerts = [f"⚠️ 回查异常（{type(e).__name__}），可会话触发补查"]
+            log(f"回查异常：{e}")
     else:
-        log("proxy 不可用，跳过回查（直抓被封的 sub 无法补抓，留待会话）")
-
-    cands.sort(key=lambda c: (-c["score"], c["age_h"]))
-    cands = cands[:MAX_CANDIDATES]
-    if cands:
-        with open(SEEN_FILE, "a", encoding="utf-8") as f:
-            f.write("\n".join(c["id"] for c in cands) + "\n")
+        log("proxy 不可用，跳过回查（粗筛已完成，回查留待会话）")
 
     head = (f"Reddit 哨兵：{ok}/{total} 条已核"
             if recheck_done else "Reddit 哨兵：已发评论回查待会话补（Chrome 未连）")
     lines = [head]
-    if failed_subs:
-        lines.append(f"  ⚠️ {len(failed_subs)} 个 sub 未抓到（直抓被封且 Chrome 补抓失败），粗筛不全")
     lines.extend(f"  {a}" for a in alerts)
     if cands:
         lines.append(f"  🎯 新候选 {len(cands)} 条（说「跑 Vlogara Reddit 日常」出草稿）：")
