@@ -6,6 +6,8 @@
 2. 告警：评论疑似被删、分数为负、出现新回复 → 进飞书告警行
 3. 补弹粗筛：扫目标 sub 的 new 页，按关键词粗筛 <48h 且回答少的候选帖
    （只筛不判断，正式判断和草稿在会话「跑 Vlogara Reddit 日常」里做）
+   - 去重主源=账号真实评论历史（fetch_replied_thread_ids），CSV logged_urls 只是兜底
+   - 冷启动养 karma 期：候选按 traction=hot(有围观🔥)/cold 排序，hot 优先（执行方案 §2.4）
 
 两块依赖不同，互不拖累：
 - 补弹粗筛：先 urllib 直抓 old.reddit HTML；2026-07-15 起 reddit 对直连 HTML 也返 403，
@@ -71,6 +73,11 @@ MAX_CANDIDATES = 5
 FRESH_HOURS = 48
 MAX_EXISTING_COMMENTS = 10
 PAGE_INTERVAL_SEC = 2.5
+
+# 冷启动养 karma 期（执行方案 §2.4 特别规则，2026-07-15 用户实证后加）：
+# 有围观的帖（评论/赞过阈值）标 hot 排前面，0 围观冷帖标 cold——冷帖首答攒不到 karma
+TRACTION_MIN_COMMENTS = 3
+TRACTION_MIN_SCORE = 3
 
 
 def log(msg: str):
@@ -211,6 +218,7 @@ class _NewListingParser(HTMLParser):
                     "name": fn,
                     "created_utc": ts / 1000 if ts else 0,   # HTML 给毫秒
                     "num_comments": int(d.get("data-comments-count") or 0),
+                    "post_score": int(d.get("data-score") or 0),
                     "permalink": d.get("data-permalink") or "",
                     "stickied": "stickied" in cls,
                     "title": "",
@@ -255,6 +263,7 @@ SCAN_SUB_JS = """
       name: el.getAttribute("data-fullname") || "",
       created_utc: parseInt(el.getAttribute("data-timestamp") || "0", 10) / 1000,
       num_comments: parseInt(el.getAttribute("data-comments-count") || "0", 10),
+      post_score: parseInt(el.getAttribute("data-score") || "0", 10),
       permalink: el.getAttribute("data-permalink") || "",
       stickied: el.classList.contains("stickied"),
       title: el.querySelector("a.title")?.textContent || ""
@@ -270,20 +279,68 @@ def fetch_new_listing_via_tab(tab, sub: str) -> list:
     return json.loads(tab.eval(SCAN_SUB_JS) or "[]")
 
 
-def load_scan_filters():
+# 已回帖去重主源：账号公开评论页里每条评论的 data-permalink 含所属帖的 id36
+_REPLIED_RE = re.compile(r'data-permalink="/r/[^/"]+/comments/([a-z0-9]+)/')
+
+_REPLIED_JS = """
+(() => {
+  const ids = [...document.querySelectorAll(".thing.comment")]
+    .map(el => ((el.getAttribute("data-permalink") || "").match(/\\/comments\\/([a-z0-9]+)\\//) || [])[1])
+    .filter(x => x);
+  return JSON.stringify(ids);
+})()
+"""
+
+
+def fetch_replied_thread_ids(tab=None):
+    """读账号评论历史，返回回过的帖 t3_ id 集合（真实历史=去重主源，CSV 只是兜底）。
+    urllib 直抓先试，被封且有 Chrome tab 时走渲染页 DOM；
+    两条通道都拿不到（或解析出 0 条=疑似坏页）返回 None → 调用方不拦截，交 CSV 兜底。"""
+    url = f"https://old.reddit.com/user/{ACCOUNT}/comments/"
+    try:
+        req = urllib.request.Request(url, headers={
+            "User-Agent": SCAN_UA,
+            "Accept": "text/html,application/xhtml+xml",
+            "Accept-Language": "en-US,en;q=0.9",
+        })
+        with urllib.request.urlopen(req, timeout=30) as r:
+            ids = {"t3_" + m for m in _REPLIED_RE.findall(r.read().decode("utf-8", "replace"))}
+        if ids:
+            return ids
+    except Exception as e:
+        log(f"账号评论历史直抓失败：{e}")
+    if tab is None:
+        return None
+    try:
+        tab.goto(url)
+        ids = json.loads(tab.eval(_REPLIED_JS) or "[]")
+        return {"t3_" + i for i in ids} or None
+    except Exception as e:
+        log(f"账号评论历史 Chrome 抓取失败：{e}")
+        return None
+
+
+def load_scan_filters(tab=None):
     seen = set()
     if SEEN_FILE.exists():
         seen = set(SEEN_FILE.read_text().split())
     logged_urls = " ".join(r.get("thread_url", "") for r in csv.DictReader(open(LOG_CSV, encoding="utf-8")))
-    return seen, logged_urls
+    replied = fetch_replied_thread_ids(tab)
+    if replied is None:
+        log("已回帖历史不可用，本轮去重退回 CSV 兜底")
+    return seen, logged_urls, replied
 
 
-def filter_posts(sub: str, posts: list, seen: set, logged_urls: str) -> list:
+def filter_posts(sub: str, posts: list, seen: set, logged_urls: str, replied_threads=None) -> list:
     now = datetime.now(timezone.utc).timestamp()
     candidates = []
     for p in posts:
         fid = p.get("name")
         if not fid or fid in seen or p.get("stickied"):
+            continue
+        # 已回帖去重（主源）：账号评论历史里回过 → 跳过。
+        # 降级时 replied_threads 为 None（falsy），本行不拦截，交由下方 CSV 兜底。
+        if replied_threads and fid in replied_threads:
             continue
         age_h = (now - p.get("created_utc", 0)) / 3600 if p.get("created_utc") else 999
         num_c = p.get("num_comments", 0)
@@ -298,18 +355,20 @@ def filter_posts(sub: str, posts: list, seen: set, logged_urls: str) -> list:
             continue
         score = len(hit_clusters) + sum(1 for q in QUESTION_HINTS if q in t)
         warn = "⚠️红线sub" if (sub == REDLINE_SUB and "簇1-便宜三脚架" in hit_clusters) else ""
+        traction = ("hot" if num_c >= TRACTION_MIN_COMMENTS
+                    or p.get("post_score", 0) >= TRACTION_MIN_SCORE else "cold")
         candidates.append({
             "sub": sub, "id": fid, "title": p.get("title", "").strip()[:80],
-            "url": purl, "comments": num_c,
+            "url": purl, "comments": num_c, "post_score": p.get("post_score", 0),
             "age_h": round(age_h, 1), "clusters": hit_clusters,
-            "score": score, "warn": warn,
+            "score": score, "warn": warn, "traction": traction,
         })
     return candidates
 
 
 def scan_candidates():
     """urllib 直抓各 sub；返回 (candidates, failed_subs)，截断与 seen 落盘留给 main 合并后做。"""
-    seen, logged_urls = load_scan_filters()
+    seen, logged_urls, replied = load_scan_filters()
     candidates, failed_subs = [], []
     for sub in SCAN_SUBS:
         try:
@@ -318,7 +377,7 @@ def scan_candidates():
             log(f"r/{sub} 直抓失败（待 Chrome 补抓）：{e}")
             failed_subs.append(sub)
             continue
-        candidates += filter_posts(sub, posts, seen, logged_urls)
+        candidates += filter_posts(sub, posts, seen, logged_urls, replied)
         time.sleep(PAGE_INTERVAL_SEC)
     return candidates, failed_subs
 
@@ -350,11 +409,11 @@ def main():
                 ok, total, alerts = check_posted_comments(tab)
                 recheck_done = True
                 if failed_subs:
-                    seen, logged_urls = load_scan_filters()
+                    seen, logged_urls, replied = load_scan_filters(tab)
                     for sub in list(failed_subs):
                         try:
                             posts = fetch_new_listing_via_tab(tab, sub)
-                            cands += filter_posts(sub, posts, seen, logged_urls)
+                            cands += filter_posts(sub, posts, seen, logged_urls, replied)
                             failed_subs.remove(sub)
                         except Exception as e:
                             log(f"r/{sub} Chrome 补抓也失败：{e}")
@@ -365,7 +424,8 @@ def main():
     else:
         log("proxy 不可用，跳过回查（直抓被封的 sub 无法补抓，留待会话）")
 
-    cands.sort(key=lambda c: (-c["score"], c["age_h"]))
+    # 养 karma 期排序：有围观(hot)优先，其次关键词得分，再看新鲜度
+    cands.sort(key=lambda c: (c.get("traction") != "hot", -c["score"], c["age_h"]))
     cands = cands[:MAX_CANDIDATES]
     if cands:
         with open(SEEN_FILE, "a", encoding="utf-8") as f:
@@ -380,7 +440,8 @@ def main():
     if cands:
         lines.append(f"  🎯 新候选 {len(cands)} 条（说「跑 Vlogara Reddit 日常」出草稿）：")
         for c in cands[:3]:
-            lines.append(f"  · r/{c['sub']}「{c['title'][:40]}」{c['comments']}答/{c['age_h']}h {c['warn']}")
+            fire = "🔥" if c.get("traction") == "hot" else ""
+            lines.append(f"  · {fire}r/{c['sub']}「{c['title'][:40]}」{c['comments']}答/{c['age_h']}h {c['warn']}")
     elif recheck_done and not alerts:
         lines.append("  存活无异动，无新候选")
     write_feishu(lines)
