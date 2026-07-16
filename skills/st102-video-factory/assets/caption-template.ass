@@ -1,0 +1,16 @@
+[Script Info]
+Title: VLOGARA ST102 Caption Template
+ScriptType: v4.00+
+PlayResX: 1080
+PlayResY: 1920
+ScaledBorderAndShadow: yes
+WrapStyle: 0
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Caption,Arial,58,&H00FFFFFF,&H000000FF,&H00101818,&H78000000,-1,0,0,0,100,100,0,0,1,5,1,2,72,72,270,1
+Style: Hook,Arial,76,&H00FFFFFF,&H000000FF,&H00101818,&H90000000,-1,0,0,0,100,100,0,0,3,12,0,8,70,70,145,1
+Style: Disclosure,Arial,28,&H00FFFFFF,&H000000FF,&H00101818,&H70000000,0,0,0,0,100,100,0,0,3,7,0,7,42,42,72,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text

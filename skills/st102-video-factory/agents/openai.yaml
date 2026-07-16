@@ -1,0 +1,4 @@
+interface:
+  display_name: "ST102 视频工厂"
+  short_description: "把ST102素材转成可审核的脚本、预览、成片与发布台账"
+  default_prompt: "Use $st102-video-factory to plan and produce this week’s ST102 short-video batch from the approved source footage."

@@ -76,6 +76,7 @@ install_codex_skill web-access-codex
 install_codex_skill report-design
 install_codex_skill lihuan-goal-meta-skill
 install_codex_skill lihuan-chat-history
+install_codex_skill st102-video-factory
 install_claude_skill invest
 install_claude_skill teach
 install_claude_skill web-access
