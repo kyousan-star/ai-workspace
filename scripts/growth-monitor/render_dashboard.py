@@ -36,6 +36,10 @@ class DailyMetric:
     organic_search_sessions: Optional[float]
     chatgpt_sessions: Optional[float]
     gemini_sessions: Optional[float]
+    perplexity_sessions: Optional[float]
+    copilot_sessions: Optional[float]
+    claude_sessions: Optional[float]
+    other_ai_sessions: Optional[float]
     google_search_impressions: Optional[float]
     google_search_clicks: Optional[float]
     buy_on_amazon_clicks: Optional[float]
@@ -155,6 +159,10 @@ def read_metrics() -> list[DailyMetric]:
                     organic_search_sessions=parse_number(row.get("organic_search_sessions", "")),
                     chatgpt_sessions=parse_number(row.get("chatgpt_sessions", "")),
                     gemini_sessions=parse_number(row.get("gemini_sessions", "")),
+                    perplexity_sessions=parse_number(row.get("perplexity_sessions", "")),
+                    copilot_sessions=parse_number(row.get("copilot_sessions", "")),
+                    claude_sessions=parse_number(row.get("claude_sessions", "")),
+                    other_ai_sessions=parse_number(row.get("other_ai_sessions", "")),
                     google_search_impressions=parse_number(row.get("google_search_impressions", "")),
                     google_search_clicks=parse_number(row.get("google_search_clicks", "")),
                     buy_on_amazon_clicks=parse_number(row.get("buy_on_amazon_clicks", "")),
@@ -383,6 +391,10 @@ def table_rows(metrics: list[DailyMetric]) -> str:
             f"<td>{format_number(row.google_search_clicks)}</td>"
             f"<td>{format_number(row.chatgpt_sessions)}</td>"
             f"<td>{format_number(row.gemini_sessions)}</td>"
+            f"<td>{format_number(row.perplexity_sessions)}</td>"
+            f"<td>{format_number(row.copilot_sessions)}</td>"
+            f"<td>{format_number(row.claude_sessions)}</td>"
+            f"<td>{format_number(row.other_ai_sessions)}</td>"
             f"<td>{format_number(row.pinterest_outbound_clicks)}</td>"
             f"<td>{html.escape(row.notes)}</td>"
             "</tr>"
@@ -648,6 +660,30 @@ def render() -> str:
             format_number(latest.gemini_sessions if latest else None),
             delta(latest.gemini_sessions if latest else None, previous.gemini_sessions if previous else None),
             "GA4 sessionSource 含 gemini；不等同于被引用",
+        ),
+        metric_card(
+            "Perplexity referral sessions",
+            format_number(latest.perplexity_sessions if latest else None),
+            delta(latest.perplexity_sessions if latest else None, previous.perplexity_sessions if previous else None),
+            "GA4 sessionSource 含 perplexity；不等同于被引用",
+        ),
+        metric_card(
+            "Copilot referral sessions",
+            format_number(latest.copilot_sessions if latest else None),
+            delta(latest.copilot_sessions if latest else None, previous.copilot_sessions if previous else None),
+            "只匹配 copilot 来源，不把普通 Bing 搜索算作 AI",
+        ),
+        metric_card(
+            "Claude referral sessions",
+            format_number(latest.claude_sessions if latest else None),
+            delta(latest.claude_sessions if latest else None, previous.claude_sessions if previous else None),
+            "GA4 sessionSource 含 claude.ai / anthropic；不等同于被引用",
+        ),
+        metric_card(
+            "Other AI referral sessions",
+            format_number(latest.other_ai_sessions if latest else None),
+            delta(latest.other_ai_sessions if latest else None, previous.other_ai_sessions if previous else None),
+            "You.com / Poe / Phind / Meta AI / Mistral / Grok / DeepSeek 等",
         ),
     ]
     def product_video_cards(prefix: str, label: str) -> list[str]:
@@ -1050,7 +1086,7 @@ def render() -> str:
       <table>
         <thead>
           <tr>
-            <th>Date</th><th>Sessions</th><th>Page views</th><th>PDP views</th><th>Amazon clicks</th><th>Buy click rate</th><th>Google impressions</th><th>Google clicks</th><th>ChatGPT sessions</th><th>Gemini sessions</th><th>Pin outbound clicks</th><th>Notes</th>
+            <th>Date</th><th>Sessions</th><th>Page views</th><th>PDP views</th><th>Amazon clicks</th><th>Buy click rate</th><th>Google impressions</th><th>Google clicks</th><th>ChatGPT</th><th>Gemini</th><th>Perplexity</th><th>Copilot</th><th>Claude</th><th>Other AI</th><th>Pin outbound clicks</th><th>Notes</th>
           </tr>
         </thead>
         <tbody>

@@ -2,7 +2,7 @@
 """Vlogara 站点漏斗采集器 — 挂在卖家脉搏晨报里的每日 GA4 + GSC API 拉数。
 
 - GA4 Data API（property 541399575）：sessions、页面浏览分布、organic sessions、
-  ChatGPT/Gemini referral sessions、buy_on_amazon_click 及产品视频互动
+  AI answer-engine referral sessions、buy_on_amazon_click 及产品视频互动
 - Search Console API（https://vlogara.com/）：搜索展示/点击（GSC 数据有 ~2 天延迟）
 - 近 5 天窗口逐日 upsert 进 data/daily_metrics.csv（只写 API 来源字段，
   不碰 pinterest_* 和 notes 列），然后重渲染 dashboard
@@ -27,6 +27,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent  # growth-monitor/
 DATA_DIR = BASE_DIR / "data"
 CSV_PATH = DATA_DIR / "daily_metrics.csv"
 GSC_PAGE_QUERY_CSV = DATA_DIR / "gsc_page_queries.csv"
+AI_REFERRAL_SOURCE_CSV = DATA_DIR / "ai_referral_sources.csv"
 FEISHU_TXT = DATA_DIR / "site_metrics_feishu.txt"
 TOKEN_PATH = Path.home() / ".claude/scripts/google_growth_token.json"
 RENDER = BASE_DIR / "scripts/render_dashboard.py"
@@ -70,7 +71,31 @@ VIDEO_METRICS_CLEAN_START = "2026-07-13"
 LEGACY_VIDEO_MIXED_START = "2026-07-10"
 LEGACY_VIDEO_MIXED_END = "2026-07-12"
 VIDEO_METRIC_COLUMNS = []
-AI_REFERRAL_COLUMNS = ["chatgpt_sessions", "gemini_sessions"]
+AI_REFERRAL_BUCKETS = [
+    ("chatgpt_sessions", "ChatGPT", ("chatgpt", "chat.openai", "openai.com")),
+    ("gemini_sessions", "Gemini", ("gemini", "bard.google")),
+    ("perplexity_sessions", "Perplexity", ("perplexity",)),
+    ("copilot_sessions", "Copilot", ("copilot", "microsoftcopilot")),
+    ("claude_sessions", "Claude", ("claude.ai", "anthropic")),
+    (
+        "other_ai_sessions",
+        "Other AI",
+        (
+            "you.com",
+            "poe.com",
+            "phind",
+            "meta.ai",
+            "mistral",
+            "grok.com",
+            "deepseek",
+            "duck.ai",
+            "andisearch",
+            "komo.ai",
+        ),
+    ),
+]
+AI_REFERRAL_COLUMNS = [bucket[0] for bucket in AI_REFERRAL_BUCKETS]
+AI_REFERRAL_LABELS = {bucket[0]: bucket[1] for bucket in AI_REFERRAL_BUCKETS}
 for product in VIDEO_PRODUCTS.values():
     prefix = product["prefix"]
     VIDEO_METRIC_COLUMNS.extend([
@@ -132,9 +157,19 @@ def iso_date_from_ga4(value):
     return f"{value[:4]}-{value[4:6]}-{value[6:]}"
 
 
+def classify_ai_source(source):
+    """Return one mutually exclusive AI referral bucket for a GA4 sessionSource."""
+    normalized = (source or "").strip().lower()
+    for column, _label, patterns in AI_REFERRAL_BUCKETS:
+        if any(pattern in normalized for pattern in patterns):
+            return column
+    return None
+
+
 def collect_ga4(at):
-    """返回 {date: {col: value}}"""
+    """返回 ({date: {col: value}}, raw_ai_referral_rows)。"""
     days = {}
+    ai_referral_rows = []
 
     def day(d):  # GA4 date 维度是 YYYYMMDD
         iso = f"{d[:4]}-{d[4:6]}-{d[6:]}"
@@ -163,13 +198,19 @@ def collect_ga4(at):
         "limit": "1000",
     })
     for row in r.get("rows", []):
-        d, source = row["dimensionValues"][0]["value"], row["dimensionValues"][1]["value"].lower()
+        d = row["dimensionValues"][0]["value"]
+        source = row["dimensionValues"][1]["value"].strip().lower()
         sessions = int(row["metricValues"][0]["value"])
         rec = day(d)
-        if "chatgpt" in source:
-            rec["chatgpt_sessions"] = rec.get("chatgpt_sessions", 0) + sessions
-        if "gemini" in source:
-            rec["gemini_sessions"] = rec.get("gemini_sessions", 0) + sessions
+        bucket = classify_ai_source(source)
+        if bucket:
+            rec[bucket] = rec.get(bucket, 0) + sessions
+            ai_referral_rows.append({
+                "date": iso_date_from_ga4(d),
+                "source": source,
+                "bucket": bucket,
+                "sessions": sessions,
+            })
 
     # 2) 页面类型分布
     r = ga4_report(at, {
@@ -248,7 +289,7 @@ def collect_ga4(at):
             if starts:
                 completes = rec.get(f"{prefix}_video_complete_users", 0)
                 rec[f"{prefix}_video_completion_rate"] = f"{completes / starts:.4f}"
-    return days
+    return days, ai_referral_rows
 
 
 def collect_gsc(at):
@@ -317,6 +358,27 @@ def upsert_gsc_page_queries(new_rows):
         by_key[(row["date"], row["page"], row["query"])] = row
     rows = sorted(by_key.values(), key=lambda row: (row["date"], row["product"], row["blog"], row["query"]))
     with GSC_PAGE_QUERY_CSV.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+    return len(new_rows), len(rows)
+
+
+def upsert_ai_referral_sources(new_rows):
+    """按 date + source 保存可识别 AI referral 原始来源，避免丢失取证字段。"""
+    fieldnames = ["date", "source", "bucket", "sessions"]
+    existing = []
+    if AI_REFERRAL_SOURCE_CSV.exists():
+        with AI_REFERRAL_SOURCE_CSV.open(newline="", encoding="utf-8") as handle:
+            existing = list(csv.DictReader(handle))
+    by_key = {(row.get("date", ""), row.get("source", "")): row for row in existing}
+    for row in new_rows:
+        by_key[(row["date"], row["source"])] = {
+            **row,
+            "sessions": str(row["sessions"]),
+        }
+    rows = sorted(by_key.values(), key=lambda row: (row["date"], row["bucket"], row["source"]))
+    with AI_REFERRAL_SOURCE_CSV.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
@@ -394,11 +456,11 @@ def build_feishu(ga4_days, gsc_days, gsc_queries=None):
         lines.append(f"  🎯 buy_on_amazon_click ×{buys}！分布：" + ", ".join(
             f"{col.replace('_amazon_clicks','')} {g[col]}" for _, col in PLACEMENT_BUCKETS
             if g.get(col)) )
-    ai_referrals = []
-    if g.get("chatgpt_sessions"):
-        ai_referrals.append(f"ChatGPT {g['chatgpt_sessions']}")
-    if g.get("gemini_sessions"):
-        ai_referrals.append(f"Gemini {g['gemini_sessions']}")
+    ai_referrals = [
+        f"{AI_REFERRAL_LABELS[column]} {g[column]}"
+        for column in AI_REFERRAL_COLUMNS
+        if g.get(column)
+    ]
     if ai_referrals:
         lines.append(f"  🤖 AI referral sessions：{', '.join(ai_referrals)}（进站信号，不等同于被引用）")
     for product in VIDEO_PRODUCTS.values():
@@ -425,7 +487,7 @@ def main():
 
     try:
         at = access_token()
-        ga4_days = collect_ga4(at)
+        ga4_days, ai_referral_rows = collect_ga4(at)
         gsc_days = collect_gsc(at)
     except urllib.error.HTTPError as e:
         msg = f"API 失败 HTTP {e.code}: {e.read().decode()[:150]}"
@@ -450,6 +512,12 @@ def main():
         page_query_new, page_query_total = 0, 0
         log(f"GSC page × query 明细拉取失败（不影响心跳）: {e}")
 
+    try:
+        ai_source_new, ai_source_total = upsert_ai_referral_sources(ai_referral_rows)
+    except Exception as e:
+        ai_source_new, ai_source_total = 0, 0
+        log(f"AI referral 原始来源写入失败（不影响心跳）: {e}")
+
     touched = upsert_csv(ga4_days, gsc_days)
     build_feishu(ga4_days, gsc_days, gsc_queries)
 
@@ -459,7 +527,8 @@ def main():
 
     log(
         f"完成：回填 {touched}，GA4 天数 {len(ga4_days)}，GSC 天数 {len(gsc_days)}，"
-        f"博客 page×query 本轮 {page_query_new} 行/历史 {page_query_total} 行"
+        f"博客 page×query 本轮 {page_query_new} 行/历史 {page_query_total} 行，"
+        f"AI referral source 本轮 {ai_source_new} 行/历史 {ai_source_total} 行"
     )
 
 
