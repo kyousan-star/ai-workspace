@@ -484,22 +484,51 @@ def ai_discovery_table_rows(rows: list[dict[str, str]]) -> str:
     return "\n".join(output)
 
 
+def ai_prompt_platform_cell(row: dict[str, str], platform: str) -> str:
+    mention = row.get(f"{platform}_brand_mentioned", "")
+    cited_url = row.get(f"{platform}_cited_url", "")
+    recommended = row.get(f"{platform}_product_recommended", "")
+    accuracy = row.get(f"{platform}_fact_accuracy", "")
+    if not any((mention, cited_url, recommended, accuracy)):
+        return "待测"
+
+    parts = []
+    if mention:
+        parts.append(f"品牌：{html.escape(mention)}")
+    if cited_url:
+        safe_url = html.escape(cited_url, quote=True)
+        parts.append(f'<a href="{safe_url}">官网引用</a>')
+    elif mention not in {"not_tested", "paused"}:
+        parts.append("官网引用：no")
+    if recommended:
+        parts.append(f"产品推荐：{html.escape(recommended)}")
+    if accuracy:
+        parts.append(f"事实：{html.escape(accuracy)}")
+    return "<br>".join(parts)
+
+
 def ai_prompt_table_rows(rows: list[dict[str, str]]) -> str:
     if not rows:
-        return '<tr><td colspan="9">尚未建立 AI prompt panel。</td></tr>'
+        return '<tr><td colspan="10">尚未建立 AI prompt panel。</td></tr>'
     output = []
     for row in rows:
+        evidence = row.get("evidence_reference", "") or ""
+        notes = row.get("notes", "") or ""
+        evidence_notes = "<br>".join(
+            part for part in (html.escape(evidence), html.escape(notes)) if part
+        )
         output.append(
             "<tr>"
             f"<td>{html.escape(row.get('prompt_id', ''))}</td>"
             f"<td>{html.escape(row.get('buyer_query', ''))}</td>"
             f"<td>{html.escape(row.get('intent', ''))}</td>"
             f"<td>{html.escape(row.get('last_checked', '') or '未跑基线')}</td>"
-            f"<td>{html.escape(row.get('chatgpt_brand_mentioned', '') or '待测')}</td>"
-            f"<td>{html.escape(row.get('chatgpt_cited_url', '') or '待测')}</td>"
-            f"<td>{html.escape(row.get('gemini_brand_mentioned', '') or '待测')}</td>"
-            f"<td>{html.escape(row.get('gemini_cited_url', '') or '待测')}</td>"
-            f"<td>{html.escape(row.get('notes', ''))}</td>"
+            f"<td>{html.escape(row.get('run_context', '') or '待测')}</td>"
+            f"<td>{ai_prompt_platform_cell(row, 'chatgpt')}</td>"
+            f"<td>{ai_prompt_platform_cell(row, 'gemini')}</td>"
+            f"<td>{ai_prompt_platform_cell(row, 'perplexity')}</td>"
+            f"<td>{ai_prompt_platform_cell(row, 'copilot')}</td>"
+            f"<td>{evidence_notes}</td>"
             "</tr>"
         )
     return "\n".join(output)
@@ -941,7 +970,7 @@ def render() -> str:
 
     <section class="panel">
       <h2>AI Discovery Health</h2>
-      <p>检查 AI 搜索可读取的公开入口、机器可读购买口径与产品事实。PASS 只代表可访问且口径一致，不代表 ChatGPT 或 Gemini 已经引用。</p>
+      <p>检查 AI 搜索可读取的公开入口、机器可读购买口径与产品事实。PASS 只代表可访问且口径一致，不代表任何 AI 平台已经引用。</p>
       <table>
         <thead>
           <tr><th>Source</th><th>Status</th><th>HTTP</th><th>Summary</th><th>Blocker</th><th>Next action</th></tr>
@@ -957,10 +986,10 @@ def render() -> str:
 
     <section class="panel">
       <h2>AI Visibility Prompt Panel</h2>
-      <p>每月固定同一组英文 buyer queries，分别记录品牌是否出现、引用 URL 与事实准确性。当前留空代表未跑基线，不能解读为“未被收录”。</p>
+      <p>每月固定同一组英文 buyer queries，分平台记录品牌出现、官网引用、产品推荐与事实准确性。引用内容不等于推荐产品；留空代表未跑基线，不能解读为“未被收录”。</p>
       <table>
         <thead>
-          <tr><th>ID</th><th>Buyer query</th><th>Intent</th><th>Last checked</th><th>ChatGPT mention</th><th>ChatGPT source</th><th>Gemini mention</th><th>Gemini source</th><th>Notes</th></tr>
+          <tr><th>ID</th><th>Buyer query</th><th>Intent</th><th>Last checked</th><th>Run context</th><th>ChatGPT</th><th>Gemini</th><th>Perplexity</th><th>Copilot</th><th>Evidence / notes</th></tr>
         </thead>
         <tbody>{ai_prompt_table_rows(ai_prompt_rows)}</tbody>
       </table>
