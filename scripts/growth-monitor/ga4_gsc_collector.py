@@ -136,6 +136,18 @@ def access_token():
         return json.loads(r.read())["access_token"]
 
 
+def describe_http_error(error):
+    """Turn OAuth expiry into an actionable Feishu message; keep other API details."""
+    body = error.read().decode(errors="replace")[:500]
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError:
+        payload = {}
+    if payload.get("error") == "invalid_grant":
+        return "Google OAuth 授权已失效或被撤销，需要重新授权（invalid_grant）"
+    return f"API 失败 HTTP {error.code}: {body[:150]}"
+
+
 def api(at, url, body=None):
     req = urllib.request.Request(
         url, headers={"Authorization": f"Bearer {at}", "Content-Type": "application/json"},
@@ -490,7 +502,7 @@ def main():
         ga4_days, ai_referral_rows = collect_ga4(at)
         gsc_days = collect_gsc(at)
     except urllib.error.HTTPError as e:
-        msg = f"API 失败 HTTP {e.code}: {e.read().decode()[:150]}"
+        msg = describe_http_error(e)
         FEISHU_TXT.write_text(f"DATE:{TODAY}\n站点漏斗采集失败：{msg}\n", encoding="utf-8")
         log(msg)
         return
