@@ -1,7 +1,7 @@
 ---
 name: asset-curator
 description: 管理品牌、产品和 Campaign 视觉资产的登记、去重、来源、哈希、候选、审批、上线、验证和退役状态。触发词：登记品牌资产、整理资产库、晋升approved、资产审批、Golden Set、成功prompt回流、asset curation。默认只能登记为 candidate；任何 approved、published、validated 或 Golden Set 晋升必须停下来取得用户明确确认。
-last_verified: 2026-07-15
+last_verified: 2026-07-19
 staleness_risk: medium
 ---
 
@@ -32,10 +32,12 @@ staleness_risk: medium
 ```bash
 python3 scripts/registryctl.py --registry <registry.json> check
 python3 scripts/registryctl.py --registry <registry.json> register-candidate --manifest <asset.json>
+python3 scripts/registryctl.py --registry <registry.json> promote --asset-id <id> --status approved --approved-by <actor> --approved-at <time> --decision-ref <path>
+python3 scripts/registryctl.py --registry <registry.json> reject --asset-id <id> --notes <reason> --decided-by <actor> --decided-at <time> --decision-ref <path>
 python3 scripts/registryctl.py --registry <registry.json> reconcile --sqlite <workbench.sqlite>
 ```
 
-`register-candidate` 校验来源文件、SHA-256、父资产和重复 ID，并使用文件锁与原子替换。它只能写入 `candidate`。`promote` 必须显式提供审批人、审批时间和决策记录；工作台不得绕过 Promotion Gate。
+`register-candidate` 校验来源文件、SHA-256、父资产和重复 ID，并使用文件锁与原子替换。它只能写入 `candidate`。`promote` 必须显式提供审批人、审批时间和决策记录；`reject` 必须保留否决原因和决策证据。`reconcile` 同时检查缺失资产、SHA-256 和 Registry/SQLite 状态冲突。工作台不得绕过 Promotion Gate。
 
 ## 禁止
 

@@ -8,7 +8,7 @@ import subprocess
 import sys
 import tempfile
 from contextlib import contextmanager
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -668,6 +668,120 @@ class Workbench:
         with self.connect() as conn:
             conn.execute("UPDATE assets SET registry_status = 'candidate' WHERE asset_id = ?", (asset_id,))
             self.event(conn, "asset", asset_id, "asset.candidate_registered", actor, {"registry": str(self.registry_path)})
+        return self.get_asset(asset_id)
+
+    def promote_registry_asset(
+        self,
+        asset_id: str,
+        status: str,
+        approved_by: str,
+        approved_at: str,
+        decision_ref: str,
+        actor: str = "user",
+    ) -> dict[str, Any]:
+        if status not in {"approved", "published", "validated", "retired"}:
+            raise WorkbenchError("promotion status must be approved, published, validated, or retired")
+        if not approved_by.strip() or not approved_at.strip() or not decision_ref.strip():
+            raise WorkbenchError("approved_by, approved_at, and decision_ref are required")
+        asset = self.get_asset(asset_id)
+        if asset["registry_status"] == status:
+            return asset
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(self.registryctl_path),
+                "--registry",
+                str(self.registry_path),
+                "promote",
+                "--asset-id",
+                asset_id,
+                "--status",
+                status,
+                "--approved-by",
+                approved_by.strip(),
+                "--approved-at",
+                approved_at.strip(),
+                "--decision-ref",
+                decision_ref.strip(),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if completed.returncode != 0:
+            raise WorkbenchError(completed.stderr.strip() or completed.stdout.strip())
+        with self.connect() as conn:
+            conn.execute("UPDATE assets SET registry_status = ? WHERE asset_id = ?", (status, asset_id))
+            self.event(
+                conn,
+                "asset",
+                asset_id,
+                "asset.registry_promoted",
+                actor,
+                {
+                    "status": status,
+                    "approved_by": approved_by.strip(),
+                    "approved_at": approved_at.strip(),
+                    "decision_ref": decision_ref.strip(),
+                },
+            )
+        return self.get_asset(asset_id)
+
+    def reject_registry_asset(
+        self,
+        asset_id: str,
+        notes: str,
+        decided_by: str,
+        decided_at: str,
+        decision_ref: str,
+        actor: str = "user",
+    ) -> dict[str, Any]:
+        if not notes.strip():
+            raise WorkbenchError("rejection notes are required")
+        asset = self.get_asset(asset_id)
+        if asset["registry_status"] == "rejected":
+            return asset
+        if asset["registry_status"] == "transient":
+            return self.register_lineage_asset(asset_id, "rejected", notes, actor)
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(self.registryctl_path),
+                "--registry",
+                str(self.registry_path),
+                "reject",
+                "--asset-id",
+                asset_id,
+                "--notes",
+                notes.strip(),
+                "--decided-by",
+                decided_by.strip(),
+                "--decided-at",
+                decided_at.strip(),
+                "--decision-ref",
+                decision_ref.strip(),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if completed.returncode != 0:
+            raise WorkbenchError(completed.stderr.strip() or completed.stdout.strip())
+        with self.connect() as conn:
+            conn.execute("UPDATE assets SET registry_status = 'rejected' WHERE asset_id = ?", (asset_id,))
+            self.event(
+                conn,
+                "asset",
+                asset_id,
+                "asset.registry_rejected",
+                actor,
+                {
+                    "notes": notes.strip(),
+                    "decided_by": decided_by.strip(),
+                    "decided_at": decided_at.strip(),
+                    "decision_ref": decision_ref.strip(),
+                },
+            )
         return self.get_asset(asset_id)
 
     def register_lineage_asset(
@@ -1619,18 +1733,12 @@ class Workbench:
         result["queued_jobs"] = jobs
         return result
 
-    def record_optimization_release(
+    def get_optimization_release_preflight(
         self,
         project_id: str,
-        payload: dict[str, Any],
-        actor: str = "user",
+        contract_id: str,
+        asset_id: str,
     ) -> dict[str, Any]:
-        contract_id = str(payload.get("optimization_contract_id", "")).strip()
-        asset_id = str(payload.get("asset_id", "")).strip()
-        published_at = str(payload.get("published_at", "")).strip()
-        if not contract_id or not asset_id or not published_at:
-            raise WorkbenchError("optimization_contract_id, asset_id, and published_at are required")
-        now = iso()
         with self.connect() as conn:
             self._require_optimize_project(conn, project_id)
             contract = conn.execute(
@@ -1645,10 +1753,108 @@ class Workbench:
             ).fetchone()
             if not asset:
                 raise WorkbenchError(f"unknown optimization asset: {asset_id}")
+            listing = conn.execute(
+                "SELECT * FROM listing_versions WHERE project_id = ? AND status = 'current'",
+                (project_id,),
+            ).fetchone()
+            if not listing:
+                raise WorkbenchError("current ListingVersion is required before release")
+            listing_intake = json.loads(listing["intake_json"])
+            rollback_image = next(
+                (
+                    item
+                    for item in listing_intake.get("listing", {}).get("images", [])
+                    if item.get("slot_key") == contract["slot_key"]
+                ),
+                None,
+            )
+            checks = [
+                {
+                    "key": "contract_current",
+                    "passed": contract["status"] != "superseded",
+                    "actual": contract["status"],
+                },
+                {
+                    "key": "contract_asset_match",
+                    "passed": contract["job_id"] == asset["job_id"],
+                    "actual": asset["job_id"],
+                },
+                {
+                    "key": "technical_qc",
+                    "passed": asset["technical_status"] == "passed"
+                    and asset["qc_status"] == "passed",
+                    "actual": f"{asset['technical_status']}/{asset['qc_status']}",
+                },
+                {
+                    "key": "registry_approved",
+                    "passed": asset["registry_status"] in {"approved", "published", "validated"},
+                    "actual": asset["registry_status"],
+                },
+                {
+                    "key": "rollback_target",
+                    "passed": bool(
+                        rollback_image
+                        and rollback_image.get("path")
+                        and Path(str(rollback_image["path"])).is_file()
+                        and rollback_image.get("sha256")
+                    ),
+                    "actual": rollback_image.get("path") if rollback_image else None,
+                },
+            ]
+        return {
+            "ready": all(item["passed"] for item in checks),
+            "project_id": project_id,
+            "optimization_contract_id": contract_id,
+            "asset_id": asset_id,
+            "slot_key": contract["slot_key"],
+            "checks": checks,
+            "rollback_target": rollback_image,
+            "required_release_fields": ["published_at", "published_by"],
+        }
+
+    def record_optimization_release(
+        self,
+        project_id: str,
+        payload: dict[str, Any],
+        actor: str = "user",
+    ) -> dict[str, Any]:
+        contract_id = str(payload.get("optimization_contract_id", "")).strip()
+        asset_id = str(payload.get("asset_id", "")).strip()
+        published_at = str(payload.get("published_at", "")).strip()
+        if not contract_id or not asset_id or not published_at:
+            raise WorkbenchError("optimization_contract_id, asset_id, and published_at are required")
+        try:
+            published_time = datetime.fromisoformat(published_at.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise WorkbenchError("published_at must be a valid ISO 8601 timestamp") from exc
+        if published_time.tzinfo is None or published_time.utcoffset() is None:
+            raise WorkbenchError("published_at must include an explicit timezone offset")
+        now = iso()
+        with self.connect() as conn:
+            self._require_optimize_project(conn, project_id)
+            contract = conn.execute(
+                "SELECT * FROM optimization_contracts WHERE optimization_contract_id = ? AND project_id = ?",
+                (contract_id, project_id),
+            ).fetchone()
+            if not contract:
+                raise WorkbenchError(f"unknown optimization contract: {contract_id}")
+            if contract["status"] == "superseded":
+                raise WorkbenchError("cannot release a superseded optimization contract")
+            asset = conn.execute(
+                "SELECT * FROM assets WHERE asset_id = ? AND project_id = ?",
+                (asset_id, project_id),
+            ).fetchone()
+            if not asset:
+                raise WorkbenchError(f"unknown optimization asset: {asset_id}")
             if contract["job_id"] != asset["job_id"]:
                 raise WorkbenchError("release asset must be the result of the selected optimization contract")
             if asset["technical_status"] != "passed" or asset["qc_status"] != "passed":
                 raise WorkbenchError("release asset must pass technical checks and manual QC")
+            if asset["registry_status"] not in {"approved", "published", "validated"}:
+                raise WorkbenchError("release asset must be approved in the central Registry")
+            asset_created_at = datetime.fromisoformat(asset["created_at"].replace("Z", "+00:00"))
+            if published_time < asset_created_at - timedelta(minutes=5):
+                raise WorkbenchError("published_at cannot predate the release asset")
             release_id = f"release_{new_ulid()}"
             conn.execute(
                 "UPDATE release_records SET status = 'superseded', updated_at = ? "

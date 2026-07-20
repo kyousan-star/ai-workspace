@@ -88,6 +88,22 @@ def build_parser() -> argparse.ArgumentParser:
     lineage.add_argument("--status", choices=["raw", "rejected"], required=True)
     lineage.add_argument("--notes", required=True)
 
+    promote_asset = sub.add_parser("promote-asset")
+    promote_asset.add_argument("--asset", required=True)
+    promote_asset.add_argument(
+        "--status", choices=["approved", "published", "validated", "retired"], required=True
+    )
+    promote_asset.add_argument("--approved-by", required=True)
+    promote_asset.add_argument("--approved-at", required=True)
+    promote_asset.add_argument("--decision-ref", required=True)
+
+    reject_asset = sub.add_parser("reject-asset")
+    reject_asset.add_argument("--asset", required=True)
+    reject_asset.add_argument("--notes", required=True)
+    reject_asset.add_argument("--decided-by", required=True)
+    reject_asset.add_argument("--decided-at", required=True)
+    reject_asset.add_argument("--decision-ref", required=True)
+
     asset = sub.add_parser("show-asset")
     asset.add_argument("--asset", required=True)
 
@@ -145,6 +161,11 @@ def build_parser() -> argparse.ArgumentParser:
     release = sub.add_parser("record-release")
     release.add_argument("--project", required=True)
     release.add_argument("--json", type=Path, required=True)
+
+    release_preflight = sub.add_parser("release-preflight")
+    release_preflight.add_argument("--project", required=True)
+    release_preflight.add_argument("--contract", required=True)
+    release_preflight.add_argument("--asset", required=True)
 
     observation = sub.add_parser("add-observation")
     observation.add_argument("--project", required=True)
@@ -211,6 +232,24 @@ def main(argv: list[str] | None = None) -> int:
             result = app.nominate_candidate(args.asset)
         elif args.command == "register-lineage":
             result = app.register_lineage_asset(args.asset, args.status, args.notes, actor="cli")
+        elif args.command == "promote-asset":
+            result = app.promote_registry_asset(
+                args.asset,
+                args.status,
+                args.approved_by,
+                args.approved_at,
+                args.decision_ref,
+                actor="cli",
+            )
+        elif args.command == "reject-asset":
+            result = app.reject_registry_asset(
+                args.asset,
+                args.notes,
+                args.decided_by,
+                args.decided_at,
+                args.decision_ref,
+                actor="cli",
+            )
         elif args.command == "show-asset":
             result = app.get_asset(args.asset)
         elif args.command == "launch":
@@ -252,6 +291,10 @@ def main(argv: list[str] | None = None) -> int:
             result = app.queue_optimization_contracts(args.project, actor="cli")
         elif args.command == "record-release":
             result = app.record_optimization_release(args.project, read_json(args.json), actor="cli")
+        elif args.command == "release-preflight":
+            result = app.get_optimization_release_preflight(
+                args.project, args.contract, args.asset
+            )
         elif args.command == "add-observation":
             result = app.add_optimization_observation(args.project, args.release, read_json(args.json), actor="cli")
         elif args.command == "add-interference":

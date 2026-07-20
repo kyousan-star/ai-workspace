@@ -249,6 +249,45 @@ class P2OptimizeTests(unittest.TestCase):
         job = workspace["queued_jobs"][0]
         asset = self.app.import_result(job["job_id"], self.current)
         self.app.evaluate_asset(asset["asset_id"], "passed", "Matches the approved challenge contract.")
+        preflight = self.app.get_optimization_release_preflight(
+            project_id,
+            workspace["contracts"][0]["optimization_contract_id"],
+            asset["asset_id"],
+        )
+        self.assertFalse(preflight["ready"])
+        with self.assertRaisesRegex(WorkbenchError, "approved in the central Registry"):
+            self.app.record_optimization_release(
+                project_id,
+                {
+                    "optimization_contract_id": workspace["contracts"][0]["optimization_contract_id"],
+                    "asset_id": asset["asset_id"],
+                    "published_at": "2026-07-20T13:30:00+04:00",
+                },
+            )
+        self.app.nominate_candidate(asset["asset_id"])
+        self.app.promote_registry_asset(
+            asset["asset_id"],
+            "approved",
+            "user",
+            "2026-07-20",
+            "decisions/test-release.md",
+        )
+        preflight = self.app.get_optimization_release_preflight(
+            project_id,
+            workspace["contracts"][0]["optimization_contract_id"],
+            asset["asset_id"],
+        )
+        self.assertTrue(preflight["ready"])
+        self.assertEqual("MAIN", preflight["rollback_target"]["slot_key"])
+        with self.assertRaisesRegex(WorkbenchError, "explicit timezone"):
+            self.app.record_optimization_release(
+                project_id,
+                {
+                    "optimization_contract_id": workspace["contracts"][0]["optimization_contract_id"],
+                    "asset_id": asset["asset_id"],
+                    "published_at": "2026-07-20T13:30:00",
+                },
+            )
         workspace = self.app.record_optimization_release(
             project_id,
             {

@@ -263,6 +263,46 @@ def promote(
     return {"asset": asset, "from": current, "to": target_status}
 
 
+def reject(
+    path: Path,
+    asset_id: str,
+    notes: str,
+    decided_by: str,
+    decided_at: str,
+    decision_ref: str,
+) -> dict[str, Any]:
+    if not notes.strip():
+        raise RegistryError("rejection notes are required")
+    if not decided_by or not decided_at or not decision_ref:
+        raise RegistryError("decided_by, decided_at, and decision_ref are required")
+    with registry_lock(path):
+        data = load_registry(path)
+        errors = validate(data)
+        if errors:
+            raise RegistryError("registry invalid before write: " + "; ".join(errors))
+        asset = next((item for item in data["assets"] if item["asset_id"] == asset_id), None)
+        if not asset:
+            raise RegistryError(f"unknown asset: {asset_id}")
+        current = asset["status"]
+        if "rejected" not in TRANSITIONS.get(current, set()):
+            raise RegistryError(f"invalid transition: {current} -> rejected")
+        asset["status"] = "rejected"
+        asset["approval_required"] = False
+        asset.pop("approval", None)
+        asset["notes"] = notes.strip()
+        asset["decision"] = {
+            "decided_by": decided_by,
+            "decided_at": decided_at,
+            "decision_ref": decision_ref,
+        }
+        data["updated_at"] = now_date()
+        errors = validate(data)
+        if errors:
+            raise RegistryError("rejection failed: " + "; ".join(errors))
+        atomic_write(path, data)
+    return {"asset": asset, "from": current, "to": "rejected"}
+
+
 def reconcile(path: Path, sqlite_path: Path) -> dict[str, Any]:
     data = load_registry(path)
     errors = validate(data)
@@ -300,11 +340,21 @@ def reconcile(path: Path, sqlite_path: Path) -> dict[str, Any]:
         for asset_id in set(expected_registry) & set(registry_assets)
         if expected_registry[asset_id]["sha256"] != registry_assets[asset_id]["sha256"]
     )
+    status_conflicts = [
+        {
+            "asset_id": asset_id,
+            "workbench_status": expected_registry[asset_id]["registry_status"],
+            "registry_status": registry_assets[asset_id]["status"],
+        }
+        for asset_id in sorted(set(expected_registry) & set(registry_assets))
+        if expected_registry[asset_id]["registry_status"] != registry_assets[asset_id]["status"]
+    ]
     return {
-        "ok": not (missing_registry or hash_mismatches),
+        "ok": not (missing_registry or hash_mismatches or status_conflicts),
         "missing_registry": missing_registry,
         "missing_workbench": missing_workbench,
         "hash_mismatches": hash_mismatches,
+        "status_conflicts": status_conflicts,
         "workbench_assets": len(workbench_assets),
         "registry_assets": len(registry_assets),
     }
@@ -330,6 +380,13 @@ def build_parser() -> argparse.ArgumentParser:
     promote_parser.add_argument("--approved-by", required=True)
     promote_parser.add_argument("--approved-at", required=True)
     promote_parser.add_argument("--decision-ref", required=True)
+
+    reject_parser = subparsers.add_parser("reject")
+    reject_parser.add_argument("--asset-id", required=True)
+    reject_parser.add_argument("--notes", required=True)
+    reject_parser.add_argument("--decided-by", required=True)
+    reject_parser.add_argument("--decided-at", required=True)
+    reject_parser.add_argument("--decision-ref", required=True)
 
     reconcile_parser = subparsers.add_parser("reconcile")
     reconcile_parser.add_argument("--sqlite", type=Path, required=True)
@@ -357,6 +414,15 @@ def main(argv: list[str] | None = None) -> int:
                 args.status,
                 args.approved_by,
                 args.approved_at,
+                args.decision_ref,
+            )
+        elif args.command == "reject":
+            result = reject(
+                registry,
+                args.asset_id,
+                args.notes,
+                args.decided_by,
+                args.decided_at,
                 args.decision_ref,
             )
         elif args.command == "reconcile":

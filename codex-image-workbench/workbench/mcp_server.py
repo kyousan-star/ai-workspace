@@ -178,6 +178,36 @@ def register_candidate(asset_id: str, actor: str = "codex") -> dict[str, Any]:
 
 
 @mcp.tool()
+def promote_registry_asset(
+    asset_id: str,
+    status: str,
+    approved_by: str,
+    approved_at: str,
+    decision_ref: str,
+    actor: str = "codex",
+) -> dict[str, Any]:
+    """Promote a registered asset with explicit human decision evidence."""
+    return app.promote_registry_asset(
+        asset_id, status, approved_by, approved_at, decision_ref, actor
+    )
+
+
+@mcp.tool()
+def reject_registry_asset(
+    asset_id: str,
+    notes: str,
+    decided_by: str,
+    decided_at: str,
+    decision_ref: str,
+    actor: str = "codex",
+) -> dict[str, Any]:
+    """Reject a transient or candidate asset while retaining version lineage."""
+    return app.reject_registry_asset(
+        asset_id, notes, decided_by, decided_at, decision_ref, actor
+    )
+
+
+@mcp.tool()
 def check_registry() -> dict[str, Any]:
     """Run a read-only consistency check against the central asset Registry."""
     return app.registry_check()
@@ -310,6 +340,18 @@ def record_optimization_release(
 ) -> dict[str, Any]:
     """Record the exact publication time of a QC-approved challenge image."""
     return app.record_optimization_release(project_id, release, actor)
+
+
+@mcp.tool()
+def preflight_optimization_release(
+    project_id: str,
+    optimization_contract_id: str,
+    asset_id: str,
+) -> dict[str, Any]:
+    """Check release asset, contract, Registry approval, and rollback target without writing state."""
+    return app.get_optimization_release_preflight(
+        project_id, optimization_contract_id, asset_id
+    )
 
 
 @mcp.tool()

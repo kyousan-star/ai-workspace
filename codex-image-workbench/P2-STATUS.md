@@ -1,8 +1,8 @@
 # P2 Existing Listing Optimization Status
 
-Date: 2026-07-15
+Date: 2026-07-19
 
-Status: `STRUCTURAL MVP PASS / PH204 DIAGNOSIS GATE PENDING`
+Status: `STRUCTURAL MVP PASS / PH204 FIRST RELEASE PENDING`
 
 ## Implemented
 
@@ -25,50 +25,60 @@ Status: `STRUCTURAL MVP PASS / PH204 DIAGNOSIS GATE PENDING`
   permits an explicit `inconclusive` decision.
 - Optimize Plan is available in the browser. CLI, HTTP, and eleven P2 MCP tools use
   the same SQLite state.
-- Optimize Plan renders the locally captured current Listing images with slot and
-  dimensions through a project-scoped media endpoint.
 
 ## PH204 Validation
 
 Project ID: `prj_01KXJE5NV4THZG9NM4V54DEXCQ`
 
-- ListingVersion v2 imports seven locked product facts, six readable product
-  references, six competitor Listing records, seven registered evidence sources,
-  and ten Sorftime baseline periods.
-- The complete current image set is local and ordered: `MAIN`, `PT01`-`PT07`, and
-  `APLUS01`-`APLUS07`. All 15 files are readable and carry source URL, SHA-256,
-  dimensions, and capture date.
-- Brand Story is recorded as supporting evidence. Its one brand hero and sixteen
-  related-product carousel thumbnails are not mixed into the PH204 image slots.
-- Diagnosis readiness is `passed`.
-- Generation readiness is `passed`; no image contract can be queued until the
-  human diagnosis Gate is approved.
-- Diagnosis v2 records a high-confidence MAIN product-fidelity mismatch, an
-  unsupported absolute durability claim in `APLUS03`, and a proof gap around
-  stability and hinge performance. It still refuses to attribute the May-July
-  decline to images without Sessions/CVR and an event timeline.
-- UAE VOC is marked unavailable; US VOC is directional only.
+- ListingVersion v2 contains the complete ordered image set: `MAIN`, `PT01`-`PT07`,
+  and `APLUS01`-`APLUS07`, plus seven locked facts, six product references, six
+  competitor Listings, registered evidence, and ten Sorftime baseline periods.
+- Diagnosis v2 and the optimization Gate are approved. It records a high-confidence
+  MAIN product-fidelity mismatch, an unsupported absolute durability claim in
+  `APLUS03`, and a proof gap around stability and hinge performance.
+- PT02 `wb-halorient-ph204-listing-image-01KXNJ6JPGP0C9CJ7BS21FZ42V` passed
+  technical and manual QC and was explicitly approved by the user on 2026-07-16.
+  Its Registry state is `approved`; it has not been recorded as `published`.
+- MAIN v3 `wb-ph204-main-real-photo-v3` uses actual PH204 photo pixels on pure
+  white and passed internal geometry/compliance QC. It is a `candidate`, not a
+  user-approved release asset.
+- PT04 `wb-ph204-pt04-real-contact-surfaces-v1` passed internal QC and is a
+  `candidate`. User visual approval is still required, and it remains held behind
+  the PT02 single-variable observation window.
+- MAIN v1 and v2 are `rejected`. MAIN v2 was demoted after compliance re-review
+  because it contains a non-included phone and generated/mockup product pixels.
+- PT06 v1, v2, and v4 are retained as `rejected` lineage. Their failure reasons
+  cover raw background, inaccurate labels and proof mapping, edge distortion, and
+  incoherent composite scale/lighting. PT06 is blocked pending better folded-state
+  photography.
+- Seven APLUS03 attempts remain failed transient results. None is approved or
+  registered for reuse.
+- Workbench SQLite and `visual-lab/asset-registry.json` reconcile with no missing
+  workbench asset or hash mismatch across the 16 workbench assets and 38 Registry
+  assets.
+- PT02 Release Preflight passes contract, contract-to-asset, technical/QC,
+  Registry approval, and rollback-target checks. Its release template intentionally
+  leaves `published_at` empty until the Amazon AE frontend changes.
 
-## Remaining Gate Inputs
+## Immediate Gates
 
-1. Review and approve or revise diagnosis version 2 before challenge contracts
-   are created.
-2. Add Seller Central Sessions and Unit Session Percentage for a clean baseline
-   window when available.
-3. Add dated price, coupon, ads, promotion, inventory, review, and competitor
-   events around the future image publication window.
+1. Upload only the approved PT02 image to Amazon AE.
+2. After the image is visibly live on the product detail page, record the actual
+   publication timestamp in the workbench. There is currently no release record.
+3. Start the 14-day single-variable observation window and capture Sessions, Unit
+   Session Percentage/CVR, sales, price, coupon, ads, inventory, Reviews, and
+   competitor changes. Sorftime can supplement but cannot replace Seller Central
+   conversion data.
+4. Review MAIN v3 and PT04 as offline candidates. Do not publish another image
+   during PT02's observation window.
+5. Keep PT06 blocked until a clean folded-state reshoot is available. PT05 and the
+   APLUS03 proof image remain future production work, not part of the first test.
 
 ## Verification
 
-- 15 automated tests pass, including P0/P1 regression coverage, three P2
-  state-machine tests, and signature-based MIME handling for mislabeled images.
-- MCP stdio exposes 34 tools and shares the production workbench database.
-- JavaScript syntax validation passes.
-- Desktop 1280 x 800 and mobile 390 x 844 browser checks pass with no page-level
-  horizontal overflow and no console warning or error. The dense diagnosis table
-  uses controlled horizontal scrolling on mobile.
-- Studio and Optimize Plan tab switching passes. The image-set blocker is closed;
-  the challenge queue remains unavailable only until diagnosis v2 receives human
-  approval.
-- All 15 PH204 project-scoped image endpoints return `200` with MIME types derived
-  from their real file signatures.
+- 20 automated tests pass across P0, P1, P2, Registry, and MCP coverage.
+- MCP stdio exposes 37 tools, including Registry promote/reject and optimization
+  release preflight.
+- JavaScript and shell syntax checks pass.
+- The PH204 state-sync run created a SQLite backup and Registry backup before
+  writing, then verified the seven corrected/imported assets by state and SHA-256.

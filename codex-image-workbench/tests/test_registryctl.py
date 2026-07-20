@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -68,6 +69,45 @@ class RegistryCtlTests(unittest.TestCase):
         self.manifest.write_text(json.dumps(data), encoding="utf-8")
         with self.assertRaises(registryctl.RegistryError):
             registryctl.register_candidate(self.registry, self.manifest)
+
+    def test_candidate_can_be_rejected_with_decision_evidence(self):
+        registryctl.register_candidate(self.registry, self.manifest)
+        result = registryctl.reject(
+            self.registry,
+            "wb-test-asset-001",
+            "Failed product-fidelity review.",
+            "user",
+            "2026-07-16",
+            "decisions/rejected.md",
+        )
+        self.assertEqual("rejected", result["to"])
+        asset = registryctl.load_registry(self.registry)["assets"][0]
+        self.assertEqual("rejected", asset["status"])
+        self.assertEqual("decisions/rejected.md", asset["decision"]["decision_ref"])
+
+    def test_reconcile_reports_registry_status_conflict(self):
+        registryctl.register_candidate(self.registry, self.manifest)
+        database = self.root / "workbench.sqlite"
+        conn = sqlite3.connect(database)
+        try:
+            conn.execute(
+                "CREATE TABLE assets(asset_id TEXT, sha256 TEXT, source_path TEXT, registry_status TEXT)"
+            )
+            conn.execute(
+                "INSERT INTO assets VALUES(?, ?, ?, ?)",
+                (
+                    "wb-test-asset-001",
+                    registryctl.sha256_file(self.source),
+                    str(self.source.resolve()),
+                    "approved",
+                ),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        result = registryctl.reconcile(self.registry, database)
+        self.assertFalse(result["ok"])
+        self.assertEqual("wb-test-asset-001", result["status_conflicts"][0]["asset_id"])
 
     def test_rejected_lineage_parent_can_be_followed_by_candidate(self):
         parent = json.loads(self.manifest.read_text(encoding="utf-8"))
