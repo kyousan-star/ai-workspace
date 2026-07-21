@@ -75,6 +75,28 @@ def build_parser() -> argparse.ArgumentParser:
     import_result.add_argument("--job", required=True)
     import_result.add_argument("--file", type=Path, required=True)
 
+    production_preflight = sub.add_parser("production-preflight")
+    production_preflight.add_argument("--project", required=True)
+    production_preflight.add_argument("--json", type=Path, required=True)
+
+    deterministic = sub.add_parser("run-deterministic")
+    deterministic.add_argument("--job", required=True)
+
+    production_failure = sub.add_parser("record-production-failure")
+    production_failure.add_argument("--project", required=True)
+    production_failure.add_argument("--slot", required=True)
+    production_failure.add_argument(
+        "--failure-class",
+        choices=[
+            "product_identity", "product_geometry", "product_proportion", "composition",
+            "background", "typography", "technical", "other",
+        ],
+        required=True,
+    )
+    production_failure.add_argument("--notes", required=True)
+    production_failure.add_argument("--job")
+    production_failure.add_argument("--asset")
+
     evaluate = sub.add_parser("evaluate")
     evaluate.add_argument("--asset", required=True)
     evaluate.add_argument("--status", choices=["needs_review", "passed", "failed"], required=True)
@@ -226,6 +248,20 @@ def main(argv: list[str] | None = None) -> int:
             result = {"job_id": args.job, "package": str(app.export_package(args.job))}
         elif args.command == "import-result":
             result = app.import_result(args.job, args.file)
+        elif args.command == "production-preflight":
+            result = app.production_preflight(args.project, read_json(args.json))
+        elif args.command == "run-deterministic":
+            result = app.run_deterministic_job(args.job, actor="cli")
+        elif args.command == "record-production-failure":
+            result = app.record_production_failure(
+                args.project,
+                args.slot,
+                args.failure_class,
+                args.notes,
+                args.job,
+                args.asset,
+                actor="cli",
+            )
         elif args.command == "evaluate":
             result = app.evaluate_asset(args.asset, args.status, args.notes)
         elif args.command == "register-candidate":

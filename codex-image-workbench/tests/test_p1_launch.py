@@ -1,28 +1,20 @@
 from __future__ import annotations
 
 import json
-import struct
 import tempfile
 import unittest
-import zlib
 from pathlib import Path
+
+from PIL import Image
 
 from workbench.core import Workbench
 from workbench.util import WorkbenchError
 
 
-def png_chunk(kind: bytes, payload: bytes) -> bytes:
-    return struct.pack(">I", len(payload)) + kind + payload + struct.pack(">I", zlib.crc32(kind + payload))
-
-
 def make_png(path: Path, rgb: tuple[int, int, int]) -> Path:
-    width = height = 64
-    raw = (b"\x00" + bytes(rgb) * width) * height
-    payload = b"\x89PNG\r\n\x1a\n"
-    payload += png_chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
-    payload += png_chunk(b"IDAT", zlib.compress(raw))
-    payload += png_chunk(b"IEND", b"")
-    path.write_bytes(payload)
+    image = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+    image.paste((*rgb, 255), (4, 4, 60, 60))
+    image.save(path)
     return path
 
 
@@ -224,7 +216,7 @@ class P1LaunchTests(unittest.TestCase):
             "contracts": [
                 {
                     "slot_key": "PT01",
-                    "execution_mode": "codex_auto",
+                    "execution_mode": "manual_import",
                     "operation": "generate",
                     "prompt": "Create a square reference-led studio image of the exact planter.",
                     "change_only": "Replace the background with clean light gray seamless paper.",
@@ -232,6 +224,11 @@ class P1LaunchTests(unittest.TestCase):
                     "claim_ids": ["claim-matte"],
                     "avoid": ["Text rendered by the image model"],
                     "acceptance": ["Exact cylindrical geometry", "Matte white finish remains unchanged"],
+                    "production": {
+                        "requested_route": "deterministic",
+                        "target_view": "front",
+                        "product_source_id": "ref-front",
+                    },
                 },
                 {
                     "slot_key": "PT02",
@@ -243,6 +240,13 @@ class P1LaunchTests(unittest.TestCase):
                     "claim_ids": [],
                     "avoid": ["Extra drainage holes"],
                     "acceptance": ["Side depth matches reference", "Product remains the visual focus"],
+                    "production": {
+                        "requested_route": "composite",
+                        "target_view": "side",
+                        "product_source_id": "ref-side",
+                        "background_source_path": str(self.competitor),
+                        "background_product_free_reviewed": True,
+                    },
                 },
             ]
         }
@@ -294,7 +298,7 @@ class P1LaunchTests(unittest.TestCase):
 
         workspace = self.app.queue_image_contracts(project_id)
         statuses = sorted(job["execution_status"] for job in workspace["queued_jobs"])
-        self.assertEqual(["awaiting_import", "queued"], statuses)
+        self.assertEqual(["awaiting_import", "awaiting_import"], statuses)
         self.assertTrue(all(item["status"] == "queued" for item in workspace["contracts"]))
 
         refreshed = self.app.import_launch_intake(project_id, self.intake(True))
@@ -304,7 +308,7 @@ class P1LaunchTests(unittest.TestCase):
         cancelled = sorted(job["execution_status"] for job in self.app.list_jobs(project_id))
         self.assertEqual(["cancelled", "cancelled"], cancelled)
 
-    def test_leased_contract_job_blocks_upstream_revision(self) -> None:
+    def test_open_locked_product_jobs_are_cancelled_by_upstream_revision(self) -> None:
         project_id = self.project["project_id"]
         self.app.import_launch_intake(project_id, self.intake(True))
         self.app.save_launch_strategy(project_id, self.strategy())
@@ -314,10 +318,11 @@ class P1LaunchTests(unittest.TestCase):
         self.app.save_image_contracts(project_id, self.contracts())
         self.app.queue_image_contracts(project_id)
 
-        leased = self.app.claim_job("p1-test-worker", lease_seconds=60)
-        self.assertEqual("leased", leased["execution_status"])
-        with self.assertRaises(WorkbenchError):
-            self.app.import_launch_intake(project_id, self.intake(True))
+        self.app.import_launch_intake(project_id, self.intake(True))
+        self.assertEqual(
+            ["cancelled", "cancelled"],
+            sorted(job["execution_status"] for job in self.app.list_jobs(project_id)),
+        )
 
 
 if __name__ == "__main__":

@@ -57,7 +57,10 @@ class MCPServerTests(unittest.TestCase):
                         self.assertIn("promote_registry_asset", names)
                         self.assertIn("reject_registry_asset", names)
                         self.assertIn("preflight_optimization_release", names)
-                        self.assertEqual(37, len(names))
+                        self.assertIn("preflight_production_route", names)
+                        self.assertIn("run_deterministic_production", names)
+                        self.assertIn("record_production_failure", names)
+                        self.assertEqual(40, len(names))
                         self.assertTrue(
                             {
                                 "import_launch_intake",

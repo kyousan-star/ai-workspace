@@ -1,28 +1,21 @@
 from __future__ import annotations
 
 import json
-import struct
 import tempfile
 import unittest
-import zlib
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+from PIL import Image
 
 from workbench.core import Workbench
 from workbench.util import WorkbenchError
 
 
-def png_chunk(kind: bytes, payload: bytes) -> bytes:
-    return struct.pack(">I", len(payload)) + kind + payload + struct.pack(">I", zlib.crc32(kind + payload))
-
-
 def make_png(path: Path, rgb: tuple[int, int, int]) -> Path:
-    width = height = 64
-    raw = (b"\x00" + bytes(rgb) * width) * height
-    payload = b"\x89PNG\r\n\x1a\n"
-    payload += png_chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
-    payload += png_chunk(b"IDAT", zlib.compress(raw))
-    payload += png_chunk(b"IEND", b"")
-    path.write_bytes(payload)
+    image = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+    image.paste((*rgb, 255), (4, 4, 60, 60))
+    image.save(path)
     return path
 
 
@@ -207,6 +200,11 @@ class P2OptimizeTests(unittest.TestCase):
                     "acceptance": ["Exact stand geometry", "Pure white background", "No added accessories"],
                     "target_metrics": ["sales", "cvr"],
                     "observation_days": 14,
+                    "production": {
+                        "requested_route": "deterministic",
+                        "target_view": "front",
+                        "product_source_id": "ref-front",
+                    },
                 }
             ]
         }
@@ -248,6 +246,9 @@ class P2OptimizeTests(unittest.TestCase):
         workspace = self.app.queue_optimization_contracts(project_id)
         job = workspace["queued_jobs"][0]
         asset = self.app.import_result(job["job_id"], self.current)
+        published_at = datetime.fromisoformat(asset["created_at"]).astimezone(
+            timezone(timedelta(hours=4))
+        ).isoformat()
         self.app.evaluate_asset(asset["asset_id"], "passed", "Matches the approved challenge contract.")
         preflight = self.app.get_optimization_release_preflight(
             project_id,
@@ -261,7 +262,7 @@ class P2OptimizeTests(unittest.TestCase):
                 {
                     "optimization_contract_id": workspace["contracts"][0]["optimization_contract_id"],
                     "asset_id": asset["asset_id"],
-                    "published_at": "2026-07-20T13:30:00+04:00",
+                    "published_at": published_at,
                 },
             )
         self.app.nominate_candidate(asset["asset_id"])
@@ -285,7 +286,7 @@ class P2OptimizeTests(unittest.TestCase):
                 {
                     "optimization_contract_id": workspace["contracts"][0]["optimization_contract_id"],
                     "asset_id": asset["asset_id"],
-                    "published_at": "2026-07-20T13:30:00",
+                    "published_at": published_at[:19],
                 },
             )
         workspace = self.app.record_optimization_release(
@@ -293,12 +294,12 @@ class P2OptimizeTests(unittest.TestCase):
             {
                 "optimization_contract_id": workspace["contracts"][0]["optimization_contract_id"],
                 "asset_id": asset["asset_id"],
-                "published_at": "2026-07-20T13:30:00+04:00",
+                "published_at": published_at,
                 "note": "MAIN only",
             },
         )
         release = workspace["releases"][0]
-        self.assertEqual("2026-07-20T13:30:00+04:00", release["published_at"])
+        self.assertEqual(published_at, release["published_at"])
         self.app.add_optimization_observation(
             project_id,
             release["release_id"],
@@ -345,15 +346,13 @@ class P2OptimizeTests(unittest.TestCase):
         self.assertEqual("kept", workspace["releases"][0]["status"])
         self.assertEqual(3, len(workspace["evaluations"][0]["evidence"]["comparable_metrics"]))
 
-    def test_leased_challenge_blocks_snapshot_revision(self) -> None:
+    def test_open_challenge_is_cancelled_by_snapshot_revision(self) -> None:
         project_id = self.project["project_id"]
         self.approve_diagnosis(True)
-        self.app.save_optimization_contracts(project_id, self.contracts("codex_auto"))
+        self.app.save_optimization_contracts(project_id, self.contracts("manual_import"))
         self.app.queue_optimization_contracts(project_id)
-        leased = self.app.claim_job("p2-test-worker", lease_seconds=60)
-        self.assertEqual("leased", leased["execution_status"])
-        with self.assertRaises(WorkbenchError):
-            self.app.import_optimization_intake(project_id, self.intake(True))
+        self.app.import_optimization_intake(project_id, self.intake(True))
+        self.assertEqual("cancelled", self.app.list_jobs(project_id)[0]["execution_status"])
 
 
 if __name__ == "__main__":

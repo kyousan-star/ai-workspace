@@ -49,6 +49,7 @@ def contract(index: int, operation: str, parent_asset_id: str | None = None) -> 
         "expected_output": {"format": "png", "aspect_ratio": "1:1"},
         "idempotency_key": f"p0-soak-{operation}-{index:02d}",
         "max_attempts": 3,
+        "production": {"requested_route": "concept_only", "exact_product_required": False},
     }
 
 

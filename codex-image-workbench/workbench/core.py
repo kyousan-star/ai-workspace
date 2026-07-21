@@ -23,6 +23,12 @@ from .p2 import (
     validate_evaluation,
     validate_optimization_contracts,
 )
+from .production import (
+    FAILURE_CLASSES,
+    HARD_STOP_FAILURES,
+    compose_locked_product,
+    validate_job_production,
+)
 from .util import WorkbenchError, iso, json_dump, new_ulid, sha256_file, slug, technical_check, utcnow
 
 
@@ -162,11 +168,16 @@ class Workbench:
                 """,
                 (project_id,),
             ).fetchall()
+            production_failures = conn.execute(
+                "SELECT * FROM production_failures WHERE project_id = ? ORDER BY created_at DESC",
+                (project_id,),
+            ).fetchall()
         return {
             "project": row_dict(project),
             "slots": [row_dict(row) for row in slots],
             "jobs": [row_dict(row) for row in jobs],
             "assets": [row_dict(row) for row in assets],
+            "production_failures": [row_dict(row) for row in production_failures],
         }
 
     def dashboard(self) -> dict[str, Any]:
@@ -209,6 +220,8 @@ class Workbench:
         return conn.execute("SELECT * FROM image_slots WHERE slot_id = ?", (slot_id,)).fetchone()
 
     def create_job(self, project_id: str, payload: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+        if not isinstance(payload.get("production"), dict):
+            raise WorkbenchError("new jobs require a production route contract")
         mode = payload.get("execution_mode")
         operation = payload.get("operation", "generate")
         slot_key = str(payload.get("slot_key", "")).strip()
@@ -267,9 +280,31 @@ class Workbench:
                 "challenge_key",
                 "target_metrics",
                 "observation_days",
+                "production",
             ):
                 if field in payload:
                     contract[field] = payload[field]
+            contract["production"] = validate_job_production(
+                payload.get("production"),
+                contract["references"],
+                mode,
+            )
+            if contract["production"]["blockers"]:
+                raise WorkbenchError(
+                    "production route blocked: " + "; ".join(contract["production"]["blockers"])
+                )
+            if contract["production"]["product_pixel_policy"] == "locked":
+                max_attempts = 1
+            elif contract["production"]["route"] == "concept_only":
+                max_attempts = min(max_attempts, 2)
+
+            hard_stops = conn.execute(
+                "SELECT failure_class FROM production_failures WHERE project_id = ? AND slot_key = ? AND hard_stop = 1",
+                (project_id, slot_key),
+            ).fetchall()
+            if hard_stops and contract["production"]["route"] not in {"deterministic", "composite"}:
+                classes = ", ".join(sorted({row["failure_class"] for row in hard_stops}))
+                raise WorkbenchError(f"slot is hard-stopped after product failure ({classes}); use a locked-product route")
             if parent_asset_id:
                 contract["parent_asset_id"] = parent_asset_id
             canonical = json_dump(contract)
@@ -503,6 +538,133 @@ class Workbench:
     def import_result(self, job_id: str, source: Path) -> dict[str, Any]:
         return self._finish_job(job_id, source.resolve(), None)
 
+    def production_preflight(self, project_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        if not isinstance(payload.get("production"), dict):
+            raise WorkbenchError("production preflight requires a production route contract")
+        mode = str(payload.get("execution_mode", "manual_import"))
+        production = validate_job_production(payload.get("production"), payload.get("references", []), mode)
+        slot_key = str(payload.get("slot_key", "")).strip()
+        with self.connect() as conn:
+            project = conn.execute("SELECT project_id FROM projects WHERE project_id = ?", (project_id,)).fetchone()
+            if not project:
+                raise WorkbenchError(f"unknown project: {project_id}")
+            failures = conn.execute(
+                "SELECT * FROM production_failures WHERE project_id = ? AND slot_key = ? ORDER BY created_at DESC",
+                (project_id, slot_key),
+            ).fetchall()
+        hard_stops = [row_dict(row) for row in failures if row["hard_stop"]]
+        blockers = list(production["blockers"])
+        if hard_stops and production["route"] not in {"deterministic", "composite"}:
+            blockers.append("prior product identity/geometry failure requires a locked-product route")
+        return {
+            "ready": not blockers,
+            "production": production,
+            "blockers": list(dict.fromkeys(blockers)),
+            "hard_stops": hard_stops,
+        }
+
+    def run_deterministic_job(self, job_id: str, actor: str = "codex") -> dict[str, Any]:
+        job = self.get_job(job_id)
+        if job["execution_mode"] != "manual_import" or job["execution_status"] != "awaiting_import":
+            raise WorkbenchError("deterministic job must be a manual_import job awaiting import")
+        production = job["contract"].get("production") or {}
+        if production.get("route") not in {"deterministic", "composite"}:
+            raise WorkbenchError("job does not use a deterministic or composite production route")
+        output = self.runtime / "production" / job_id / "composed.png"
+        provenance = compose_locked_product(production, output)
+        asset = self.import_result(job_id, output)
+        provenance_path = Path(asset["source_path"] + ".provenance.json")
+        provenance_path.write_text(json.dumps(provenance, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        with self.connect() as conn:
+            self.event(
+                conn,
+                "asset",
+                asset["asset_id"],
+                "production.deterministic_completed",
+                actor,
+                {"provenance_path": str(provenance_path), **provenance},
+            )
+        return {"asset": self.get_asset(asset["asset_id"]), "provenance": provenance, "provenance_path": str(provenance_path)}
+
+    def record_production_failure(
+        self,
+        project_id: str,
+        slot_key: str,
+        failure_class: str,
+        notes: str,
+        job_id: str | None = None,
+        asset_id: str | None = None,
+        actor: str = "user",
+    ) -> dict[str, Any]:
+        failure_class = failure_class.strip()
+        slot_key = slot_key.strip()
+        notes = notes.strip()
+        if failure_class not in FAILURE_CLASSES:
+            raise WorkbenchError("invalid production failure class")
+        if not slot_key or not notes:
+            raise WorkbenchError("slot_key and notes are required")
+        hard_stop = failure_class in HARD_STOP_FAILURES
+        failure_id = f"failure_{new_ulid()}"
+        now = iso()
+        with self.connect() as conn:
+            if not conn.execute("SELECT project_id FROM projects WHERE project_id = ?", (project_id,)).fetchone():
+                raise WorkbenchError(f"unknown project: {project_id}")
+            if job_id and not conn.execute("SELECT job_id FROM jobs WHERE job_id = ? AND project_id = ?", (job_id, project_id)).fetchone():
+                raise WorkbenchError(f"unknown project job: {job_id}")
+            if asset_id and not conn.execute("SELECT asset_id FROM assets WHERE asset_id = ? AND project_id = ?", (asset_id, project_id)).fetchone():
+                raise WorkbenchError(f"unknown project asset: {asset_id}")
+            conn.execute(
+                "INSERT INTO production_failures(failure_id, project_id, slot_key, job_id, asset_id, failure_class, hard_stop, notes, created_at) "
+                "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (failure_id, project_id, slot_key, job_id, asset_id, failure_class, int(hard_stop), notes, now),
+            )
+            cancelled = 0
+            if hard_stop:
+                cancelled = conn.execute(
+                    "UPDATE jobs SET execution_status = 'cancelled', finished_at = ?, error = ?, lease_owner = NULL, lease_expires_at = NULL "
+                    "WHERE project_id = ? AND slot_id IN (SELECT slot_id FROM image_slots WHERE project_id = ? AND slot_key = ?) "
+                    "AND execution_status IN ('queued', 'leased', 'awaiting_import')",
+                    (now, f"hard stop: {failure_class}", project_id, project_id, slot_key),
+                ).rowcount
+                for table, id_field in (
+                    ("image_contracts", "contract_id"),
+                    ("optimization_contracts", "optimization_contract_id"),
+                ):
+                    rows = conn.execute(
+                        f"SELECT {id_field}, contract_json FROM {table} "
+                        "WHERE project_id = ? AND slot_key = ? AND status NOT IN ('blocked', 'superseded')",
+                        (project_id, slot_key),
+                    ).fetchall()
+                    for contract_row in rows:
+                        contract = json.loads(contract_row["contract_json"])
+                        reason = f"hard stop after {failure_class} failure"
+                        contract["blocked_reasons"] = list(
+                            dict.fromkeys([*contract.get("blocked_reasons", []), reason])
+                        )
+                        production = contract.get("production") or {}
+                        production["route"] = "blocked"
+                        production["blockers"] = list(
+                            dict.fromkeys([*production.get("blockers", []), reason])
+                        )
+                        contract["production"] = production
+                        conn.execute(
+                            f"UPDATE {table} SET status = 'blocked', contract_json = ?, updated_at = ? "
+                            f"WHERE {id_field} = ?",
+                            (json_dump(contract), now, contract_row[id_field]),
+                        )
+            self.event(
+                conn,
+                "project",
+                project_id,
+                "production.hard_stopped" if hard_stop else "production.failure_recorded",
+                actor,
+                {"failure_id": failure_id, "slot_key": slot_key, "failure_class": failure_class, "cancelled_jobs": cancelled},
+            )
+            row = conn.execute("SELECT * FROM production_failures WHERE failure_id = ?", (failure_id,)).fetchone()
+        result = row_dict(row)
+        result["cancelled_jobs"] = cancelled
+        return result
+
     def fail_job(self, job_id: str, worker: str, error: str, retry: bool) -> dict[str, Any]:
         with self.connect() as conn:
             job = conn.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id,)).fetchone()
@@ -625,6 +787,9 @@ class Workbench:
         if asset["technical_status"] != "passed" or asset["qc_status"] != "passed":
             raise WorkbenchError("technical and QC checks must pass before candidate registration")
         contract = asset["contract"]
+        route = (contract.get("production") or {}).get("route")
+        if route in {"concept_only", "blocked"}:
+            raise WorkbenchError("concept-only or blocked outputs cannot be registered as candidates")
         manifest = {
             "asset_id": asset["asset_id"],
             "kind": contract.get("kind", "listing-image"),
@@ -1273,6 +1438,7 @@ class Workbench:
                 "claim_ids": contract["claim_ids"],
                 "claims": [claims[claim_id] for claim_id in contract["claim_ids"]],
                 "contract_id": item["contract_id"],
+                "production": contract["production"],
                 "idempotency_key": f"p1-{item['contract_id']}",
             }
             job, _ = self.create_job(project_id, payload)
@@ -1718,6 +1884,7 @@ class Workbench:
                 "challenge_key": contract["challenge_key"],
                 "target_metrics": contract["target_metrics"],
                 "observation_days": contract["observation_days"],
+                "production": contract["production"],
                 "idempotency_key": f"p2-{item['optimization_contract_id']}",
             }
             job, _ = self.create_job(project_id, payload)

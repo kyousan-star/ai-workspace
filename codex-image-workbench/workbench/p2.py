@@ -6,6 +6,7 @@ from typing import Any
 
 from .p1 import require_list, require_text, resolve_path, unique_records
 from .util import WorkbenchError, image_metadata, sha256_file
+from .production import normalize_production_spec
 
 
 FACT_STATUSES = {"locked", "pending", "conflict"}
@@ -386,6 +387,21 @@ def validate_optimization_contracts(
                 blockers.append(f"reference is not a readable local image: {reference_id}")
         if contract["operation"] == "edit" and not contract["parent_asset_id"]:
             blockers.append("edit contract requires a workbench parent_asset_id")
+        production = normalize_production_spec(
+            contract.get("production"),
+            product_refs,
+            [reference_id for reference_id in reference_ids if reference_id in product_refs],
+            [str(contract.get("production", {}).get("target_view", "")).strip()] if contract.get("production", {}).get("target_view") else [],
+            bool(contract.get("production", {}).get("scene_required", False)),
+        )
+        if production["route"] in {"deterministic", "composite"} and contract["execution_mode"] != "manual_import":
+            production["blockers"].append("locked-product routes require manual_import execution mode")
+            production["route"] = "blocked"
+        if production["route"] == "concept_only":
+            production["blockers"].append("concept-only output is not eligible for direct Listing/A+ release")
+            production["route"] = "blocked"
+        contract["production"] = production
+        blockers.extend(production["blockers"])
         contract["blocked_reasons"] = list(dict.fromkeys(blockers))
         contract["readiness"] = "blocked" if blockers else "ready"
         normalized.append(contract)

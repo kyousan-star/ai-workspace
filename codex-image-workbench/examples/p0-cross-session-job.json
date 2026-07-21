@@ -11,5 +11,9 @@
     "aspect_ratio": "1:1"
   },
   "max_attempts": 3,
+  "production": {
+    "requested_route": "concept_only",
+    "exact_product_required": false
+  },
   "idempotency_key": "p0-cross-session-20260715"
 }

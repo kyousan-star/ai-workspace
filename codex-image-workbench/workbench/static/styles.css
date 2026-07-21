@@ -156,6 +156,11 @@ td.prompt-cell { max-width: 330px; white-space: nowrap; overflow: hidden; text-o
 .status-succeeded, .status-passed, .status-candidate, .status-approved, .status-ready, .status-current, .status-active, .status-kept, .status-low { background: var(--green-soft); color: var(--green); }
 .status-failed, .status-rejected, .status-blocked, .status-changes_requested, .status-rolled_back, .status-high { background: var(--coral-soft); color: var(--coral); }
 .status-transient, .status-pending, .status-draft, .status-superseded, .status-cancelled, .status-medium { background: #eef1ee; color: var(--muted); }
+.production-route { display: inline-flex; align-items: center; min-height: 22px; padding: 0 7px; border-radius: 4px; white-space: nowrap; font-size: 10px; font-weight: 700; background: #eef1ee; color: var(--muted); }
+.route-deterministic { background: var(--green-soft); color: var(--green); }
+.route-composite { background: var(--blue-soft); color: var(--blue); }
+.route-concept_only { background: var(--amber-soft); color: var(--amber); }
+.route-blocked { background: var(--coral-soft); color: var(--coral); }
 
 .workflow-section { border-bottom: 1px solid var(--line); padding-bottom: 22px; }
 .workflow-section:last-child { border-bottom: 0; }
@@ -250,6 +255,9 @@ input:focus, select:focus, textarea:focus { border-color: var(--green); box-shad
 .mode-control input { position: absolute; opacity: 0; pointer-events: none; }
 .mode-control span { display: flex; min-height: 34px; align-items: center; padding: 0 12px; border: 1px solid var(--line); border-radius: 5px; color: var(--ink); background: #fff; }
 .mode-control input:checked + span { border-color: var(--green); background: var(--green-soft); color: var(--green); }
+.check-field { display: flex !important; align-items: center; gap: 8px !important; min-height: 58px; }
+.check-field input { width: 16px; height: 16px; margin: 0; }
+.compact-check { min-height: 30px; }
 
 .toast { position: fixed; right: 18px; bottom: 18px; max-width: min(420px, calc(100vw - 36px)); background: var(--ink); color: #fff; border-radius: 5px; padding: 10px 12px; font-size: 11px; opacity: 0; transform: translateY(8px); pointer-events: none; transition: .18s ease; z-index: 10; }
 .toast.show { opacity: 1; transform: translateY(0); }

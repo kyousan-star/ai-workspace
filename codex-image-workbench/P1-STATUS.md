@@ -16,6 +16,8 @@ Decision: STRUCTURAL MVP PASS / REAL SKU VALIDATION PENDING
 - Reference-led Image Contracts with product and brand invariants, one explicit
   `change_only` variable, allowed Claims, Avoid rules, and acceptance criteria.
 - Shared compilation into the P0 `codex_auto` or `manual_import` job queue.
+- V1.3 production Gate requires a reviewed transparent real-product source for
+  final Listing/A+ contracts. Exact-product jobs cannot use `codex_auto`.
 - Transactional invalidation: replacing intake, strategy, sequence, or contracts
   cancels queued/manual-waiting jobs; leased work blocks revision until released.
 - Launch Plan UI for coverage, Gate decisions, sequence review, contracts, and
@@ -52,5 +54,5 @@ it is not evidence of product-reference accuracy or generated-image quality.
 3. Exercise the missing-image response with a real capture request and re-import.
 4. Generate or manually return at least one real contract result, then complete
    technical checks, product/Claim QC, and candidate nomination.
-5. Keep actual ImageGen execution classified as `interactive_resumable`; no
-   unattended background guarantee is claimed.
+5. Keep ImageGen limited to `concept_only` or background-only preparation.
+   Final product pixels remain locked and are assembled deterministically.

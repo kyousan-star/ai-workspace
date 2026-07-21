@@ -1,6 +1,6 @@
 # P2 Existing Listing Optimization Status
 
-Date: 2026-07-19
+Date: 2026-07-20
 
 Status: `STRUCTURAL MVP PASS / PH204 FIRST RELEASE PENDING`
 
@@ -14,9 +14,9 @@ Status: `STRUCTURAL MVP PASS / PH204 FIRST RELEASE PENDING`
 - Evidence-linked diagnoses require explicit issue IDs, severity, confidence,
   findings, hypotheses, known evidence references, and target metrics.
 - A human diagnosis Gate precedes one-variable challenge contracts.
-- Challenge contracts reuse the P0 generation queue, execution modes, asset
-  versions, technical checks, and manual QC. Replacing upstream inputs cancels
-  pending challenge jobs; leased jobs block revision.
+- Challenge contracts reuse the P0 queue, asset versions, technical checks, and
+  manual QC. V1.3 exact-product challenges require a reviewed transparent
+  cutout and deterministic or locked-product composite route.
 - Release records require the actual Amazon publication time and the exact
   QC-approved contract result.
 - Post-release observations preserve source and source class. Sorftime is stored
@@ -51,6 +51,9 @@ Project ID: `prj_01KXJE5NV4THZG9NM4V54DEXCQ`
   cover raw background, inaccurate labels and proof mapping, edge distortion, and
   incoherent composite scale/lighting. PT06 is blocked pending better folded-state
   photography.
+- V1.3 PH204 regression passes: PT04 resolves to `deterministic` and records
+  `generated_product_pixels: false`; PT06 remains `blocked` despite having a
+  transparent PNG because its reviewed source quality is `insufficient`.
 - Seven APLUS03 attempts remain failed transient results. None is approved or
   registered for reuse.
 - Workbench SQLite and `visual-lab/asset-registry.json` reconcile with no missing
@@ -76,9 +79,10 @@ Project ID: `prj_01KXJE5NV4THZG9NM4V54DEXCQ`
 
 ## Verification
 
-- 20 automated tests pass across P0, P1, P2, Registry, and MCP coverage.
-- MCP stdio exposes 37 tools, including Registry promote/reject and optimization
-  release preflight.
+- 27 automated tests pass across P0, P1, P2, V1.3 production routes, Registry,
+  HTTP, and MCP coverage.
+- MCP stdio exposes 40 tools, including production preflight, deterministic
+  execution, hard-stop failure recording, Registry governance, and release preflight.
 - JavaScript and shell syntax checks pass.
 - The PH204 state-sync run created a SQLite backup and Registry backup before
   writing, then verified the seven corrected/imported assets by state and SHA-256.

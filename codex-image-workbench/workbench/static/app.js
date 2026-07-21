@@ -73,6 +73,23 @@ function pill(status) {
   return `<span class="status-pill status-${escapeHtml(status)}">${escapeHtml(statusLabel(status))}</span>`;
 }
 
+function productionRoute(production = {}) {
+  if (!production.route) return "旧任务";
+  return {
+    deterministic: "确定性合成",
+    composite: "锁定产品 + 背景",
+    concept_only: "仅概念",
+    blocked: "已阻断",
+    legacy: "旧任务",
+  }[production.route] || "未判定";
+}
+
+function productionCell(production = {}) {
+  const blockers = production.blockers || [];
+  const title = blockers.length ? blockers.join("；") : (production.product_pixel_policy === "locked" ? "产品像素锁定" : "");
+  return `<span class="production-route route-${escapeHtml(production.route || "unknown")}" title="${escapeHtml(title)}">${escapeHtml(productionRoute(production))}</span>`;
+}
+
 function lines(value) {
   return String(value || "").split("\n").map((item) => item.trim()).filter(Boolean);
 }
@@ -148,7 +165,6 @@ function renderProject() {
   el("stat-qc").textContent = assets.filter((asset) => ["not_run", "needs_review"].includes(asset.qc_status)).length;
   el("launch-tab").classList.toggle("hidden", !isLaunch);
   el("optimize-tab").classList.toggle("hidden", !isOptimize);
-  el("new-job-button").classList.toggle("hidden", isLaunch || isOptimize);
   renderJobs();
   renderAssets();
   renderQuality();
@@ -214,7 +230,7 @@ function renderOptimize() {
   }
 
   el("optimize-contract-summary").textContent = `${contracts.length} 个挑战`;
-  el("optimize-contracts").innerHTML = contracts.length ? `<div class="table-wrap"><table><thead><tr><th>挑战</th><th>图位</th><th>单变量</th><th>目标指标</th><th>状态</th></tr></thead><tbody>${contracts.map((item) => `<tr><td><strong>${escapeHtml(item.challenge_key)}</strong></td><td>${escapeHtml(item.slot_key)}</td><td>${escapeHtml(item.contract.change_only)}</td><td>${escapeHtml(item.contract.target_metrics.join(" · ") || "-")}</td><td>${pill(item.status)}</td></tr>`).join("")}</tbody></table></div>` : emptyWorkflow("尚无挑战版本");
+  el("optimize-contracts").innerHTML = contracts.length ? `<div class="table-wrap"><table><thead><tr><th>挑战</th><th>图位</th><th>单变量</th><th>生产路线</th><th>目标指标</th><th>状态</th></tr></thead><tbody>${contracts.map((item) => `<tr><td><strong>${escapeHtml(item.challenge_key)}</strong></td><td>${escapeHtml(item.slot_key)}</td><td>${escapeHtml(item.contract.change_only)}</td><td>${productionCell(item.contract.production)}</td><td>${escapeHtml(item.contract.target_metrics.join(" · ") || "-")}</td><td>${pill(item.status)}</td></tr>`).join("")}</tbody></table></div>` : emptyWorkflow("尚无挑战版本");
 
   el("optimize-release-summary").textContent = `${releases.length} 次发布 · ${observations.filter((item) => item.phase === "after").length} 个观察窗口`;
   if (releases.length) {
@@ -317,7 +333,7 @@ function renderLaunch() {
   }
 
   el("launch-contract-summary").textContent = `${contracts.length} 个契约`;
-  el("launch-contracts").innerHTML = contracts.length ? `<div class="table-wrap"><table><thead><tr><th>图位</th><th>单变量</th><th>参考</th><th>模式</th><th>状态</th></tr></thead><tbody>${contracts.map((item) => `<tr><td><strong>${escapeHtml(item.slot_key)}</strong></td><td>${escapeHtml(item.contract.change_only)}</td><td>${escapeHtml(item.contract.reference_ids.join(" · "))}</td><td>${item.contract.execution_mode === "codex_auto" ? "Codex" : "手动回导"}</td><td>${pill(item.status)}</td></tr>`).join("")}</tbody></table></div>` : emptyWorkflow("尚无 Image Contract");
+  el("launch-contracts").innerHTML = contracts.length ? `<div class="table-wrap"><table><thead><tr><th>图位</th><th>单变量</th><th>参考</th><th>生产路线</th><th>执行</th><th>状态</th></tr></thead><tbody>${contracts.map((item) => `<tr><td><strong>${escapeHtml(item.slot_key)}</strong></td><td>${escapeHtml(item.contract.change_only)}</td><td>${escapeHtml(item.contract.reference_ids.join(" · "))}</td><td>${productionCell(item.contract.production)}</td><td>${item.contract.execution_mode === "codex_auto" ? "Codex" : "本地/手动"}</td><td>${pill(item.status)}</td></tr>`).join("")}</tbody></table></div>` : emptyWorkflow("尚无 Image Contract");
   setLaunchActionState();
 }
 
@@ -349,6 +365,7 @@ function setActiveTab(tab) {
   el("optimize-panel").classList.toggle("hidden", state.activeTab !== "optimize");
   el("studio-panel").classList.toggle("hidden", state.activeTab !== "studio");
   el("quality-panel").classList.toggle("hidden", state.activeTab !== "quality");
+  el("new-job-button").classList.toggle("hidden", state.activeTab !== "studio");
 }
 
 function renderJobs() {
@@ -357,24 +374,29 @@ function renderJobs() {
   el("jobs-body").innerHTML = jobs.length ? jobs.map((job) => {
     const prompt = job.contract?.prompt || "";
     const mode = job.execution_mode === "codex_auto" ? "Codex" : "手动";
+    const production = job.contract?.production || {};
     const asset = state.project.assets.find((item) => item.job_id === job.job_id);
     let actions = "";
     if (job.execution_status === "queued") {
       actions = `<button class="mini-button" data-copy-worker="${escapeHtml(job.job_id)}" type="button">复制 Worker</button>`;
     } else if (job.execution_status === "awaiting_import") {
-      actions = `<button class="mini-button" data-export-job="${escapeHtml(job.job_id)}" type="button">导出</button><button class="mini-button" data-import-job="${escapeHtml(job.job_id)}" type="button">回导</button>`;
+      const deterministic = ["deterministic", "composite"].includes(production.route)
+        ? `<button class="mini-button" data-run-deterministic="${escapeHtml(job.job_id)}" type="button">执行合成</button>`
+        : "";
+      actions = `${deterministic}<button class="mini-button" data-export-job="${escapeHtml(job.job_id)}" type="button">导出</button><button class="mini-button" data-import-job="${escapeHtml(job.job_id)}" type="button">回导</button>`;
     } else if (asset) {
       actions = `<button class="mini-button" data-view-asset="${escapeHtml(asset.asset_id)}" type="button">查看</button>`;
     }
     return `<tr>
       <td><strong>${escapeHtml(job.slot_key || job.contract?.slot)}</strong></td>
       <td class="prompt-cell" title="${escapeHtml(prompt)}">${escapeHtml(job.operation === "edit" ? "编辑 · " : "生成 · ")}${escapeHtml(prompt)}</td>
+      <td>${productionCell(production)}</td>
       <td>${mode}</td>
       <td>${pill(job.execution_status)}</td>
       <td>${job.attempts}/${job.max_attempts}</td>
       <td><div class="row-actions">${actions}</div></td>
     </tr>`;
-  }).join("") : `<tr><td colspan="6">暂无任务</td></tr>`;
+  }).join("") : `<tr><td colspan="7">暂无任务</td></tr>`;
 
   document.querySelectorAll("[data-copy-worker]").forEach((button) => button.addEventListener("click", async () => {
     const command = `cd /Users/lihuan/ai-workspace/codex-image-workbench && python3 -m workbench.cli claim --worker codex-workbench`;
@@ -383,6 +405,7 @@ function renderJobs() {
   }));
   document.querySelectorAll("[data-export-job]").forEach((button) => button.addEventListener("click", () => exportJob(button.dataset.exportJob)));
   document.querySelectorAll("[data-import-job]").forEach((button) => button.addEventListener("click", () => chooseImport(button.dataset.importJob)));
+  document.querySelectorAll("[data-run-deterministic]").forEach((button) => button.addEventListener("click", () => runDeterministic(button.dataset.runDeterministic)));
   document.querySelectorAll("[data-view-asset]").forEach((button) => button.addEventListener("click", () => selectAsset(button.dataset.viewAsset)));
 }
 
@@ -444,6 +467,8 @@ function renderInspector(asset = null) {
           <dt>图位</dt><dd>${escapeHtml(asset.slot_key)}</dd>
           <dt>父版本</dt><dd>${escapeHtml(asset.parent_asset_id || "根版本")}</dd>
           <dt>来源</dt><dd>${escapeHtml(asset.source_type)}</dd>
+          <dt>生产路线</dt><dd>${escapeHtml(productionRoute(asset.contract?.production))}</dd>
+          <dt>产品像素</dt><dd>${escapeHtml(asset.contract?.production?.product_pixel_policy || "未记录")}</dd>
           <dt>文件</dt><dd>${asset.width || "?"} × ${asset.height || "?"} ${escapeHtml(asset.file_format || "")}</dd>
           <dt>SHA-256</dt><dd>${escapeHtml(asset.sha256.slice(0, 16))}…</dd>
         </dl>
@@ -513,6 +538,12 @@ async function exportJob(jobId) {
   toast("生成包路径已复制");
 }
 
+async function runDeterministic(jobId) {
+  const result = await api(`/api/jobs/${encodeURIComponent(jobId)}/run-deterministic`, { method: "POST" });
+  toast("确定性合成完成，产品像素未生成");
+  await refreshProject(result.asset.asset_id);
+}
+
 function chooseImport(jobId) {
   state.uploadJobId = jobId;
   el("file-input").value = "";
@@ -576,6 +607,15 @@ el("job-form").addEventListener("submit", async (event) => {
   const form = new FormData(event.currentTarget);
   const parentAssetId = form.get("parent_asset_id") || null;
   const parentAsset = state.project.assets.find((asset) => asset.asset_id === parentAssetId);
+  const productSourcePath = String(form.get("product_source_path") || parentAsset?.source_path || "").trim();
+  const targetView = String(form.get("target_view") || "").trim();
+  const references = productSourcePath ? [{
+    reference_id: "ui-product-source",
+    path: productSourcePath,
+    role: "product",
+    view: targetView,
+    approved: true,
+  }] : [];
   const payload = {
     slot_key: form.get("slot_key"),
     operation: form.get("operation"),
@@ -585,8 +625,18 @@ el("job-form").addEventListener("submit", async (event) => {
     invariants: lines(form.get("invariants")),
     avoid: lines(form.get("avoid")),
     acceptance: lines(form.get("acceptance")),
-    references: parentAsset ? [{ path: parentAsset.source_path, role: "edit-target" }] : [],
+    references,
     expected_output: { format: "png", aspect_ratio: "1:1" },
+    production: {
+      requested_route: form.get("production_route"),
+      exact_product_required: form.get("exact_product_required") === "on",
+      scene_required: form.get("production_route") === "composite",
+      target_view: targetView,
+      product_source_id: productSourcePath ? "ui-product-source" : "",
+      background_source_path: String(form.get("background_source_path") || "").trim(),
+      background_product_free_reviewed: form.get("background_product_free_reviewed") === "on",
+      canvas: { width: 1254, height: 1254, background: "#FFFFFF" },
+    },
   };
   try {
     const result = await api(`/api/projects/${encodeURIComponent(state.projectId)}/jobs`, {
@@ -605,6 +655,14 @@ el("operation-select").addEventListener("change", (event) => {
   const edit = event.target.value === "edit";
   el("parent-select").required = edit;
   if (!edit) el("parent-select").value = "";
+});
+
+el("production-route-select").addEventListener("change", (event) => {
+  const conceptOnly = event.target.value === "concept_only";
+  const executionMode = conceptOnly ? "codex_auto" : "manual_import";
+  const mode = document.querySelector(`input[name="execution_mode"][value="${executionMode}"]`);
+  if (mode) mode.checked = true;
+  el("exact-product-checkbox").checked = !conceptOnly;
 });
 
 el("file-input").addEventListener("change", async (event) => {

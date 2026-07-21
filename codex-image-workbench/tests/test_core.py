@@ -1,28 +1,21 @@
 import hashlib
 import json
-import struct
 import tempfile
 import unittest
-import zlib
 from datetime import timedelta
 from pathlib import Path
+
+from PIL import Image
 
 from workbench.core import Workbench
 from workbench.util import WorkbenchError, iso, utcnow
 
 
-def png_chunk(kind: bytes, payload: bytes) -> bytes:
-    return struct.pack(">I", len(payload)) + kind + payload + struct.pack(">I", zlib.crc32(kind + payload))
-
-
 def make_png(path: Path, width: int, height: int, rgb=(230, 230, 230)) -> Path:
-    row = b"\x00" + bytes(rgb) * width
-    raw = row * height
-    payload = b"\x89PNG\r\n\x1a\n"
-    payload += png_chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
-    payload += png_chunk(b"IDAT", zlib.compress(raw))
-    payload += png_chunk(b"IEND", b"")
-    path.write_bytes(payload)
+    image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    inset = max(1, min(width, height) // 16)
+    image.paste((*rgb, 255), (inset, inset, width - inset, height - inset))
+    image.save(path)
     return path
 
 
@@ -57,12 +50,13 @@ class WorkbenchCoreTests(unittest.TestCase):
                 "marketplace": "US",
             }
         )["project"]
+        self.product_source = make_png(Path(self.temp.name) / "product-source.png", 64, 64)
 
     def tearDown(self):
         self.temp.cleanup()
 
     def job_payload(self, mode="manual_import", operation="generate", parent=None):
-        return {
+        payload = {
             "slot_key": "PT01",
             "execution_mode": mode,
             "operation": operation,
@@ -73,6 +67,27 @@ class WorkbenchCoreTests(unittest.TestCase):
             "acceptance": ["square image"],
             "expected_output": {"format": "png", "aspect_ratio": "1:1"},
         }
+        if mode == "codex_auto":
+            payload["production"] = {
+                "requested_route": "concept_only",
+                "exact_product_required": False,
+            }
+        else:
+            payload["references"] = [
+                {
+                    "reference_id": "locked-product",
+                    "path": str(self.product_source),
+                    "role": "product",
+                    "view": "front",
+                    "approved": True,
+                }
+            ]
+            payload["production"] = {
+                "requested_route": "deterministic",
+                "target_view": "front",
+                "product_source_id": "locked-product",
+            }
+        return payload
 
     def test_manual_import_qc_candidate_and_parent_version(self):
         job, created = self.app.create_job(self.project["project_id"], self.job_payload())
@@ -155,6 +170,12 @@ class WorkbenchCoreTests(unittest.TestCase):
         self.assertTrue(created)
         self.assertFalse(created_again)
         self.assertEqual(first["job_id"], second["job_id"])
+
+    def test_new_job_requires_production_route(self):
+        payload = self.job_payload()
+        payload.pop("production")
+        with self.assertRaisesRegex(WorkbenchError, "require a production route"):
+            self.app.create_job(self.project["project_id"], payload)
 
 
 if __name__ == "__main__":

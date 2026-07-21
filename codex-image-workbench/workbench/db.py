@@ -4,7 +4,7 @@ import sqlite3
 from pathlib import Path
 
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 def connect(path: Path) -> sqlite3.Connection:
@@ -330,6 +330,24 @@ def initialize(path: Path, workspace: Path) -> None:
                 FOREIGN KEY(release_id) REFERENCES release_records(release_id)
             );
 
+            CREATE TABLE IF NOT EXISTS production_failures (
+                failure_id TEXT PRIMARY KEY,
+                project_id TEXT NOT NULL,
+                slot_key TEXT NOT NULL,
+                job_id TEXT,
+                asset_id TEXT,
+                failure_class TEXT NOT NULL CHECK(failure_class IN (
+                    'product_identity', 'product_geometry', 'product_proportion',
+                    'composition', 'background', 'typography', 'technical', 'other'
+                )),
+                hard_stop INTEGER NOT NULL CHECK(hard_stop IN (0, 1)),
+                notes TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(project_id) REFERENCES projects(project_id),
+                FOREIGN KEY(job_id) REFERENCES jobs(job_id),
+                FOREIGN KEY(asset_id) REFERENCES assets(asset_id)
+            );
+
             CREATE INDEX IF NOT EXISTS jobs_queue_idx
                 ON jobs(execution_status, execution_mode, queued_at);
             CREATE INDEX IF NOT EXISTS assets_project_idx
@@ -350,6 +368,8 @@ def initialize(path: Path, workspace: Path) -> None:
                 ON performance_observations(project_id, phase, period_end);
             CREATE INDEX IF NOT EXISTS interference_project_idx
                 ON interference_events(project_id, status, started_at);
+            CREATE INDEX IF NOT EXISTS production_failures_project_idx
+                ON production_failures(project_id, slot_key, created_at);
             """
         )
         conn.execute(

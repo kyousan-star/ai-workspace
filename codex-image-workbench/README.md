@@ -2,6 +2,25 @@
 
 Local Amazon image production and optimization workbench.
 
+## V1.3 Production Routes
+
+V1.3 separates production safety from execution mode. New P1 and P2 contracts
+must resolve one of these routes before they can enter the queue:
+
+- `deterministic`: a reviewed transparent cutout made from real product pixels
+  is placed on a solid canvas;
+- `composite`: the same locked product cutout is placed on an existing
+  background-only image that has been explicitly reviewed as product-free;
+- `concept_only`: Codex/ImageGen may explore composition or backgrounds, but
+  the output is not a direct Listing or A+ deliverable;
+- `blocked`: required view, transparent cutout, background, or source-quality
+  evidence is missing.
+
+Exact-product routes require `manual_import`, cap attempts at one, and can run
+the local Pillow compositor directly. Product identity, geometry, or proportion
+failure hard-stops the slot and cancels open work. Increasing the ImageGen draw
+count is not a recovery path.
+
 ## P0 Scope
 
 - launch and optimization projects
@@ -83,7 +102,7 @@ this directory, while shared Skills remain under `/Users/lihuan/ai-workspace/ski
 The repository Marketplace is registered as `personal`, and the plugin is
 installed as `codex-image-workbench@personal`.
 
-New Codex tasks load the 34 stdio MCP tools. Write-capable MCP calls require an
+New Codex tasks load 40 stdio MCP tools. Write-capable MCP calls require an
 interactive approval; non-interactive `codex exec` is not treated as an
 unattended worker.
 
@@ -107,6 +126,18 @@ Manual jobs export a complete generation package and accept a dragged-in image
 through the local UI. Imported or generated files must still pass technical and
 manual QC before candidate registration is enabled.
 
+Production route commands:
+
+```bash
+python3 -m workbench.cli production-preflight --project <project-id> --json <job.json>
+python3 -m workbench.cli run-deterministic --job <job-id>
+python3 -m workbench.cli record-production-failure --project <project-id> --slot PT04 --failure-class product_geometry --notes "Geometry changed"
+```
+
+The deterministic compositor requires Pillow and a reviewed transparent PNG.
+It writes a `production-provenance.1` sidecar with source hashes, product bounds,
+and `generated_product_pixels: false`.
+
 ## Tests
 
 ```bash
@@ -120,3 +151,5 @@ python3 scripts/run_p0_soak.py --count 20 --workers 4
 ```
 
 This soak does not call ImageGen and must not be used as image-quality evidence.
+The former 15-30 call pure ImageGen quality soak is intentionally cancelled:
+it tested repeated draws, not the locked-product production architecture.

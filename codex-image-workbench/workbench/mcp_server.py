@@ -88,6 +88,7 @@ def create_generation_job(
     acceptance: list[str] | None = None,
     references: list[dict[str, Any]] | None = None,
     expected_output: dict[str, Any] | None = None,
+    production: dict[str, Any] | None = None,
     max_attempts: int = 3,
     idempotency_key: str | None = None,
 ) -> dict[str, Any]:
@@ -104,6 +105,10 @@ def create_generation_job(
         "references": references or [],
         "expected_output": expected_output or {"format": "png", "aspect_ratio": "1:1"},
         "max_attempts": max_attempts,
+    }
+    payload["production"] = production or {
+        "requested_route": "concept_only",
+        "exact_product_required": False,
     }
     if idempotency_key:
         payload["idempotency_key"] = idempotency_key
@@ -151,6 +156,48 @@ def export_generation_package(job_id: str) -> dict[str, str]:
 def import_generation_result(job_id: str, output_path: str) -> dict[str, Any]:
     """Import an image for a manual job and run technical checks."""
     return app.import_result(job_id, Path(output_path).expanduser())
+
+
+@mcp.tool()
+def preflight_production_route(
+    project_id: str,
+    slot_key: str,
+    execution_mode: str,
+    production: dict[str, Any],
+    references: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Resolve the production route and return material blockers before creating a job."""
+    return app.production_preflight(
+        project_id,
+        {
+            "slot_key": slot_key,
+            "execution_mode": execution_mode,
+            "production": production,
+            "references": references or [],
+        },
+    )
+
+
+@mcp.tool()
+def run_deterministic_production(job_id: str, actor: str = "codex") -> dict[str, Any]:
+    """Compose a locked real-product cutout onto a supplied or solid background and import the result."""
+    return app.run_deterministic_job(job_id, actor)
+
+
+@mcp.tool()
+def record_production_failure(
+    project_id: str,
+    slot_key: str,
+    failure_class: str,
+    notes: str,
+    job_id: str | None = None,
+    asset_id: str | None = None,
+    actor: str = "codex",
+) -> dict[str, Any]:
+    """Record a production failure; identity, geometry, or proportion failures hard-stop the slot."""
+    return app.record_production_failure(
+        project_id, slot_key, failure_class, notes, job_id, asset_id, actor
+    )
 
 
 @mcp.tool()

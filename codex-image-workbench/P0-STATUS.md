@@ -42,7 +42,8 @@ Decision: PASS WITH LIMITS / READY FOR P1
 
 ## Remaining Production Hardening
 
-1. Run a 15-30 call soak using actual Codex ImageGen and record model-context rotation limits.
+1. Cancelled: do not run a 15-30 call pure ImageGen quality soak. V1.3 treats
+   repeated exact-product generation as the wrong architecture, not a reliability test.
 2. Confirm an interactive Codex Desktop task can approve the installed MCP write tools.
 3. Reconcile a promoted real candidate between SQLite and the central Registry after explicit asset approval.
 

@@ -289,6 +289,10 @@ class Handler(BaseHTTPRequestHandler):
                 job, created = self.app.create_job(project_jobs.group(1), self.read_json())
                 self.send_json({"created": created, "job": job}, HTTPStatus.CREATED if created else HTTPStatus.OK)
                 return
+            production_preflight = re.fullmatch(r"/api/projects/([^/]+)/production/preflight", path)
+            if production_preflight:
+                self.send_json(self.app.production_preflight(production_preflight.group(1), self.read_json()))
+                return
             job_export = re.fullmatch(r"/api/jobs/([^/]+)/export", path)
             if job_export:
                 package = self.app.export_package(job_export.group(1))
@@ -297,6 +301,10 @@ class Handler(BaseHTTPRequestHandler):
             job_import = re.fullmatch(r"/api/jobs/([^/]+)/import", path)
             if job_import:
                 self.handle_import(job_import.group(1), query)
+                return
+            deterministic = re.fullmatch(r"/api/jobs/([^/]+)/run-deterministic", path)
+            if deterministic:
+                self.send_json(self.app.run_deterministic_job(deterministic.group(1), "user"))
                 return
             job_heartbeat = re.fullmatch(r"/api/jobs/([^/]+)/heartbeat", path)
             if job_heartbeat:

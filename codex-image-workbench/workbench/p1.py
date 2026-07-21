@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from .util import WorkbenchError, image_metadata, sha256_file
+from .production import normalize_production_spec
 
 
 FACT_STATUSES = {"locked", "pending", "conflict"}
@@ -432,6 +433,23 @@ def validate_contracts(
             blockers.append("no approved readable reference image")
         if contract["operation"] == "edit" and not contract["parent_asset_id"]:
             blockers.append("edit contract requires parent_asset_id")
+        output_method = str(slot.get("output_method", "")).lower()
+        scene_required = any(token in output_method for token in ("lifestyle", "scene", "composite"))
+        production = normalize_production_spec(
+            contract.get("production"),
+            references,
+            reference_ids,
+            slot["required_views"],
+            scene_required,
+        )
+        if production["route"] in {"deterministic", "composite"} and contract["execution_mode"] != "manual_import":
+            production["blockers"].append("locked-product routes require manual_import execution mode")
+            production["route"] = "blocked"
+        if production["route"] == "concept_only":
+            production["blockers"].append("concept-only output is not a final Listing/A+ deliverable")
+            production["route"] = "blocked"
+        contract["production"] = production
+        blockers.extend(production["blockers"])
         contract["blocked_reasons"] = blockers
         contract["readiness"] = "blocked" if blockers else "ready"
         normalized.append(contract)

@@ -46,7 +46,7 @@
               <h1 id="project-title"></h1>
             </div>
             <div class="project-actions">
-              <button id="new-job-button" class="primary-button" type="button"><span>+</span> 新建任务</button>
+              <button id="new-job-button" class="primary-button" type="button"><span>+</span> 新建执行任务</button>
             </div>
           </div>
 
@@ -146,7 +146,7 @@
               <div class="table-wrap">
                 <table>
                   <thead>
-                    <tr><th>图位</th><th>任务</th><th>模式</th><th>状态</th><th>尝试</th><th>操作</th></tr>
+                    <tr><th>图位</th><th>任务</th><th>生产路线</th><th>执行</th><th>状态</th><th>尝试</th><th>操作</th></tr>
                   </thead>
                   <tbody id="jobs-body"></tbody>
                 </table>
@@ -199,9 +199,19 @@
         </div>
         <fieldset class="mode-control">
           <legend>执行方式</legend>
-          <label><input type="radio" name="execution_mode" value="codex_auto" checked /><span>Codex 自动</span></label>
-          <label><input type="radio" name="execution_mode" value="manual_import" /><span>手动回导</span></label>
+          <label><input type="radio" name="execution_mode" value="codex_auto" /><span>Codex 自动</span></label>
+          <label><input type="radio" name="execution_mode" value="manual_import" checked /><span>本地/手动</span></label>
         </fieldset>
+        <div class="form-grid three">
+          <label>生产路线<select name="production_route" id="production-route-select"><option value="auto">自动判定</option><option value="deterministic">确定性合成</option><option value="composite">背景合成</option><option value="concept_only">仅概念探索</option></select></label>
+          <label>目标视角<input name="target_view" autocomplete="off" placeholder="front / side / top" /></label>
+          <label class="check-field"><input id="exact-product-checkbox" type="checkbox" name="exact_product_required" checked /><span>锁定真实产品像素</span></label>
+        </div>
+        <div class="form-grid">
+          <label>透明产品 PNG<input name="product_source_path" autocomplete="off" placeholder="/absolute/path/product-cutout.png" /></label>
+          <label>背景图（背景合成路线）<input name="background_source_path" autocomplete="off" placeholder="/absolute/path/background.png" /></label>
+        </div>
+        <label class="check-field compact-check"><input type="checkbox" name="background_product_free_reviewed" /><span>背景已审核，不含产品、设备、Logo 或文字</span></label>
         <label>Prompt<textarea name="prompt" required rows="5" placeholder="描述图片目标、构图和场景"></textarea></label>
         <div class="form-grid three">
           <label>Preserve<textarea name="invariants" rows="4" placeholder="每行一个不变量"></textarea></label>

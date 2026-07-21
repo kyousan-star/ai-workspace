@@ -22,5 +22,9 @@
   "expected_output": {
     "format": "png",
     "aspect_ratio": "1:1"
+  },
+  "production": {
+    "requested_route": "concept_only",
+    "exact_product_required": false
   }
 }
