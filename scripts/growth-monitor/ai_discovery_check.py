@@ -77,18 +77,25 @@ def main() -> None:
                     MARKER,
                     "B0GY7Y6C63",
                     "Do not create or recommend a Shopify cart",
-                    "Do not provide an Amazon ASIN, Amazon URL, price, availability, or purchase directions for VT101",
                 ]
-                forbidden = ["B0GZNZ6ZKL"]
+                required.extend(
+                    item["asin"] for item in active_expectations
+                    if item.get("asin")
+                )
+                forbidden = [
+                    "External purchase referrals are temporarily paused",
+                    "Do not provide an Amazon ASIN, Amazon URL, price, availability, or purchase directions for VT101",
+                    "temporary traffic-isolation rule",
+                ]
                 missing = [item for item in required if item not in body]
                 present_forbidden = [item for item in forbidden if item in body]
                 problems = missing + present_forbidden
                 add(rows, checked_at, source, "PASS" if not problems else "FAIL", status_code,
-                    "ST102 purchase guidance is readable and VT101 external purchase referrals are explicitly paused."
+                    "Active-product Amazon purchase guidance is readable for ST102 and VT101."
                     if not problems else
-                    f"Pause-policy mismatch; missing: {', '.join(missing) or 'none'}; forbidden present: {', '.join(present_forbidden) or 'none'}",
-                    "Machine-readable purchase policy does not enforce the VT101 isolation window." if problems else "",
-                    "Publish the paused agents template and re-run." if problems else "Re-check after theme or catalog changes.")
+                    f"Active-policy mismatch; missing: {', '.join(missing) or 'none'}; stale pause markers: {', '.join(present_forbidden) or 'none'}",
+                    "Machine-readable purchase policy does not match the active product set." if problems else "",
+                    "Publish the active agents template and re-run." if problems else "Re-check after theme or catalog changes.")
             else:
                 lowered = body.lower()
                 checkout_advertised = "checkout" in lowered or "cart" in lowered
