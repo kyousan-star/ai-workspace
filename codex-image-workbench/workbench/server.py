@@ -240,6 +240,16 @@ class Handler(BaseHTTPRequestHandler):
             if optimize_release:
                 self.send_json(self.app.record_optimization_release(optimize_release.group(1), self.read_json(), "user"))
                 return
+            optimize_baseline_observation = re.fullmatch(
+                r"/api/projects/([^/]+)/optimize/baseline-observations", path
+            )
+            if optimize_baseline_observation:
+                self.send_json(
+                    self.app.add_optimization_baseline_observation(
+                        optimize_baseline_observation.group(1), self.read_json(), "user"
+                    )
+                )
+                return
             optimize_observation = re.fullmatch(r"/api/projects/([^/]+)/optimize/releases/([^/]+)/observations", path)
             if optimize_observation:
                 self.send_json(

@@ -90,6 +90,41 @@ function productionCell(production = {}) {
   return `<span class="production-route route-${escapeHtml(production.route || "unknown")}" title="${escapeHtml(title)}">${escapeHtml(productionRoute(production))}</span>`;
 }
 
+function metricSummary(metrics = {}) {
+  const labels = {
+    aplus_media_slots_verified: "A+ 图位已核验",
+    category_rank: "类目排名",
+    current_offer_price: "Sorftime 当前价",
+    displayed_price: "Amazon 展示价",
+    listing_image_slots_verified: "Listing 图位已核验",
+    price: "月均价",
+    revenue: "销售额估算",
+    review_count: "评论数",
+    sales: "销量估算",
+    star_rating: "评分",
+    subcategory_rank: "子类排名",
+    top_category_rank: "大类排名",
+  };
+  return Object.entries(metrics)
+    .map(([key, value]) => `${escapeHtml(labels[key] || key)}: ${escapeHtml(value ?? "-")}`)
+    .join(" · ");
+}
+
+function sourceClassLabel(sourceClass) {
+  return {
+    external_estimate: "外部估算",
+    first_party: "卖家后台",
+    manual: "手动采集",
+  }[sourceClass] || sourceClass;
+}
+
+function eventTypeLabel(eventType) {
+  return {
+    offer_source_discrepancy: "价格源不一致",
+    price_promotion: "价格 / 促销",
+  }[eventType] || eventType;
+}
+
 function lines(value) {
   return String(value || "").split("\n").map((item) => item.trim()).filter(Boolean);
 }
@@ -232,19 +267,31 @@ function renderOptimize() {
   el("optimize-contract-summary").textContent = `${contracts.length} 个挑战`;
   el("optimize-contracts").innerHTML = contracts.length ? `<div class="table-wrap"><table><thead><tr><th>挑战</th><th>图位</th><th>单变量</th><th>生产路线</th><th>目标指标</th><th>状态</th></tr></thead><tbody>${contracts.map((item) => `<tr><td><strong>${escapeHtml(item.challenge_key)}</strong></td><td>${escapeHtml(item.slot_key)}</td><td>${escapeHtml(item.contract.change_only)}</td><td>${productionCell(item.contract.production)}</td><td>${escapeHtml(item.contract.target_metrics.join(" · ") || "-")}</td><td>${pill(item.status)}</td></tr>`).join("")}</tbody></table></div>` : emptyWorkflow("尚无挑战版本");
 
-  el("optimize-release-summary").textContent = `${releases.length} 次发布 · ${observations.filter((item) => item.phase === "after").length} 个观察窗口`;
+  const currentBaselines = observations.filter((item) => (
+    item.phase === "before" && item.listing_version_id === listingVersion?.listing_version_id
+  ));
+  const afterObservations = observations.filter((item) => item.phase === "after");
+  el("optimize-release-summary").textContent = `${releases.length} 次发布 · ${afterObservations.length} 个发布后窗口 · ${currentBaselines.length} 个上线前基线`;
+  const baselineTable = currentBaselines.length
+    ? `<div class="observation-block"><h3>上线前基线</h3><div class="table-wrap"><table class="baseline-table"><thead><tr><th>周期</th><th>来源</th><th>类别</th><th>指标</th><th>备注</th></tr></thead><tbody>${currentBaselines.slice(0, 6).map((item) => `<tr><td class="date-cell">${escapeHtml(item.period_start)} → ${escapeHtml(item.period_end)}</td><td>${escapeHtml(item.source)}</td><td>${escapeHtml(sourceClassLabel(item.source_class))}</td><td>${metricSummary(item.metrics)}</td><td>${escapeHtml(item.note || "-")}</td></tr>`).join("")}</tbody></table></div></div>`
+    : "";
+  const eventTable = events.length
+    ? `<div class="observation-block"><h3>干扰时间线</h3><div class="table-wrap"><table class="event-table"><thead><tr><th>开始</th><th>类型</th><th>状态</th><th>说明</th><th>来源</th></tr></thead><tbody>${events.map((item) => `<tr><td class="date-cell">${escapeHtml(item.started_at)}</td><td>${escapeHtml(eventTypeLabel(item.event_type))}</td><td>${pill(item.status)}</td><td>${escapeHtml(item.description)}</td><td>${escapeHtml(item.source || "-")}</td></tr>`).join("")}</tbody></table></div></div>`
+    : "";
+  let releaseTable;
   if (releases.length) {
     const latestEvaluation = new Map();
     evaluations.forEach((item) => { if (!latestEvaluation.has(item.release_id)) latestEvaluation.set(item.release_id, item); });
-    el("optimize-releases").innerHTML = `<div class="table-wrap"><table><thead><tr><th>图位</th><th>上线时间</th><th>状态</th><th>观察</th><th>干扰事件</th><th>决策</th></tr></thead><tbody>${releases.map((release) => {
+    releaseTable = `<div class="observation-block"><h3>发布记录</h3><div class="table-wrap"><table><thead><tr><th>图位</th><th>上线时间</th><th>状态</th><th>观察</th><th>干扰事件</th><th>决策</th></tr></thead><tbody>${releases.map((release) => {
       const releaseObservations = observations.filter((item) => item.release_id === release.release_id);
       const releaseEvents = events.filter((item) => item.release_id === release.release_id || item.release_id === null);
       const evaluation = latestEvaluation.get(release.release_id);
       return `<tr><td><strong>${escapeHtml(release.slot_key)}</strong></td><td>${escapeHtml(release.published_at)}</td><td>${pill(release.status)}</td><td>${releaseObservations.length}</td><td>${releaseEvents.length}${releaseEvents.some((item) => item.status === "open") ? " · 未关闭" : ""}</td><td>${evaluation ? pill(evaluation.decision) : "待观察"}</td></tr>`;
-    }).join("")}</tbody></table></div>`;
+    }).join("")}</tbody></table></div></div>`;
   } else {
-    el("optimize-releases").innerHTML = emptyWorkflow("挑战图通过 QC 并实际上线后，记录准确发布时间");
+    releaseTable = `<div class="observation-block"><h3>发布记录</h3>${emptyWorkflow("挑战图通过 QC 并实际上线后，记录准确发布时间")}</div>`;
   }
+  el("optimize-releases").innerHTML = `${baselineTable}${eventTable}${releaseTable}`;
   setOptimizeActionState();
 }
 

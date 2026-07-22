@@ -239,6 +239,41 @@ class P2OptimizeTests(unittest.TestCase):
             self.app.get_optimization_listing_image_path(complete_project["project_id"], "main").resolve(),
         )
 
+    def test_baseline_observation_is_idempotent_and_preserves_open_contract(self) -> None:
+        project_id = self.project["project_id"]
+        self.approve_diagnosis(True)
+        self.app.save_optimization_contracts(project_id, self.contracts())
+        workspace = self.app.queue_optimization_contracts(project_id)
+        listing_version_id = workspace["listing_version"]["listing_version_id"]
+        contract_id = workspace["contracts"][0]["optimization_contract_id"]
+        payload = {
+            "period_start": "2026-07-01",
+            "period_end": "2026-07-21",
+            "source": "sorftime",
+            "source_class": "external_estimate",
+            "metrics": {"sales": 5, "price": 27.44, "rank": 10910},
+            "note": "Partial month snapshot through 2026-07-21.",
+        }
+
+        self.app.add_optimization_baseline_observation(project_id, payload)
+        workspace = self.app.add_optimization_baseline_observation(project_id, payload)
+        matching = [
+            item
+            for item in workspace["observations"]
+            if item["period_end"] == "2026-07-21" and item["source"] == "sorftime"
+        ]
+        self.assertEqual(1, len(matching))
+        self.assertEqual("before", matching[0]["phase"])
+        self.assertEqual(3, workspace["readiness"]["metrics"]["baseline_periods"])
+        self.assertEqual(listing_version_id, workspace["listing_version"]["listing_version_id"])
+        contract = next(item for item in workspace["contracts"] if item["optimization_contract_id"] == contract_id)
+        self.assertEqual("queued", contract["status"])
+
+        conflicting = dict(payload)
+        conflicting["metrics"] = {"sales": 6, "price": 27.44, "rank": 10910}
+        with self.assertRaisesRegex(WorkbenchError, "different evidence"):
+            self.app.add_optimization_baseline_observation(project_id, conflicting)
+
     def test_release_records_publish_time_and_inconclusive_evaluation(self) -> None:
         project_id = self.project["project_id"]
         self.approve_diagnosis(True)

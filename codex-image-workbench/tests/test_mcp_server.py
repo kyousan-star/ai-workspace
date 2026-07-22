@@ -60,7 +60,7 @@ class MCPServerTests(unittest.TestCase):
                         self.assertIn("preflight_production_route", names)
                         self.assertIn("run_deterministic_production", names)
                         self.assertIn("record_production_failure", names)
-                        self.assertEqual(40, len(names))
+                        self.assertEqual(41, len(names))
                         self.assertTrue(
                             {
                                 "import_launch_intake",
@@ -81,6 +81,7 @@ class MCPServerTests(unittest.TestCase):
                                 "save_optimization_contracts",
                                 "queue_optimization_contracts",
                                 "record_optimization_release",
+                                "add_optimization_baseline_observation",
                                 "add_optimization_observation",
                                 "add_optimization_interference_event",
                                 "resolve_optimization_interference_event",

@@ -189,6 +189,10 @@ def build_parser() -> argparse.ArgumentParser:
     release_preflight.add_argument("--contract", required=True)
     release_preflight.add_argument("--asset", required=True)
 
+    baseline_observation = sub.add_parser("add-baseline-observation")
+    baseline_observation.add_argument("--project", required=True)
+    baseline_observation.add_argument("--json", type=Path, required=True)
+
     observation = sub.add_parser("add-observation")
     observation.add_argument("--project", required=True)
     observation.add_argument("--release", required=True)
@@ -330,6 +334,10 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "release-preflight":
             result = app.get_optimization_release_preflight(
                 args.project, args.contract, args.asset
+            )
+        elif args.command == "add-baseline-observation":
+            result = app.add_optimization_baseline_observation(
+                args.project, read_json(args.json), actor="cli"
             )
         elif args.command == "add-observation":
             result = app.add_optimization_observation(args.project, args.release, read_json(args.json), actor="cli")

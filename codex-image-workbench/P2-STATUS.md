@@ -23,7 +23,7 @@ Status: `STRUCTURAL MVP PASS / PH204 FIRST RELEASE PENDING`
   as `external_estimate`, not first-party conversion data.
 - Open interference events prevent `keep` or `rollback`; the workbench still
   permits an explicit `inconclusive` decision.
-- Optimize Plan is available in the browser. CLI, HTTP, and eleven P2 MCP tools use
+- Optimize Plan is available in the browser. CLI, HTTP, and twelve P2 MCP tools use
   the same SQLite state.
 
 ## PH204 Validation
@@ -54,6 +54,10 @@ Project ID: `prj_01KXJE5NV4THZG9NM4V54DEXCQ`
 - V1.3 PH204 regression passes: PT04 resolves to `deterministic` and records
   `generated_product_pixels: false`; PT06 remains `blocked` despite having a
   transparent PNG because its reviewed source quality is `insufficient`.
+- The 2026-07-21 PT02 pre-release snapshot was appended without revising
+  ListingVersion v2. It now has 12 current baseline windows, two open
+  price/promotion interference events, and zero release records. Public Amazon
+  and Sorftime prices disagree, so price remains an active attribution confounder.
 - Seven APLUS03 attempts remain failed transient results. None is approved or
   registered for reuse.
 - Workbench SQLite and `visual-lab/asset-registry.json` reconcile with no missing
@@ -79,10 +83,11 @@ Project ID: `prj_01KXJE5NV4THZG9NM4V54DEXCQ`
 
 ## Verification
 
-- 27 automated tests pass across P0, P1, P2, V1.3 production routes, Registry,
+- 28 automated tests pass across P0, P1, P2, V1.3 production routes, Registry,
   HTTP, and MCP coverage.
-- MCP stdio exposes 40 tools, including production preflight, deterministic
-  execution, hard-stop failure recording, Registry governance, and release preflight.
+- MCP stdio exposes 41 tools, including pre-release baseline append, production
+  preflight, deterministic execution, hard-stop failure recording, Registry
+  governance, and release preflight.
 - JavaScript and shell syntax checks pass.
 - The PH204 state-sync run created a SQLite backup and Registry backup before
   writing, then verified the seven corrected/imported assets by state and SHA-256.

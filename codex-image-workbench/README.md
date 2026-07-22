@@ -79,15 +79,21 @@ Optimize projects use a separate evidence and experiment path:
    and price, promotion, ads, inventory, review, or competitor interference;
 6. record an explicit `keep`, `rollback`, or `inconclusive` decision.
 
-Sorftime observations are stored as `external_estimate`. They do not substitute
+Sorftime observations are stored as `external_estimate`. Pre-release windows can
+be appended without revising the current Listing snapshot:
+
+```bash
+python3 -m workbench.cli add-baseline-observation --project <project-id> --json baseline.json
+```
+
+They do not substitute
 for Seller Central Sessions or Unit Session Percentage and do not establish
-image causation. The browser exposes this workflow under `Optimize Plan`; eleven
+image causation. The browser exposes this workflow under `Optimize Plan`; twelve
 P2 MCP tools and matching CLI/HTTP operations use the same SQLite state.
 
 The first real project is PH204 for Amazon AE. ListingVersion v2 contains the
-complete eight-image Listing sequence and seven A+ modules. Generation readiness
-passes, while diagnosis v2 remains at the human Gate before any challenge is
-queued. See `P2-STATUS.md`.
+complete eight-image Listing sequence and seven A+ modules. Diagnosis v2 is
+approved and the PT02 one-variable challenge is queued. See `P2-STATUS.md`.
 
 ## Codex Plugin
 
@@ -102,7 +108,7 @@ this directory, while shared Skills remain under `/Users/lihuan/ai-workspace/ski
 The repository Marketplace is registered as `personal`, and the plugin is
 installed as `codex-image-workbench@personal`.
 
-New Codex tasks load 40 stdio MCP tools. Write-capable MCP calls require an
+New Codex tasks load 41 stdio MCP tools. Write-capable MCP calls require an
 interactive approval; non-interactive `codex exec` is not treated as an
 unattended worker.
 

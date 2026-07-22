@@ -166,6 +166,21 @@ td.prompt-cell { max-width: 330px; white-space: nowrap; overflow: hidden; text-o
 .workflow-section:last-child { border-bottom: 0; }
 .gate-actions { display: flex; gap: 6px; }
 .workflow-empty { min-height: 72px; display: grid; place-items: center; border: 1px dashed #c7d0c9; color: var(--muted); background: rgba(255,255,255,.45); font-size: 11px; }
+.observation-block + .observation-block { margin-top: 18px; }
+.observation-block h3 { margin: 0 0 8px; font-size: 12px; font-weight: 700; color: var(--ink); }
+.observation-block table { table-layout: fixed; }
+.observation-block td { vertical-align: top; overflow-wrap: anywhere; }
+.observation-block .date-cell { white-space: nowrap; overflow-wrap: normal; }
+.baseline-table { min-width: 980px; }
+.baseline-table th:nth-child(1) { width: 150px; }
+.baseline-table th:nth-child(2) { width: 165px; }
+.baseline-table th:nth-child(3) { width: 105px; }
+.baseline-table th:nth-child(4) { width: 300px; }
+.event-table { min-width: 940px; }
+.event-table th:nth-child(1) { width: 110px; }
+.event-table th:nth-child(2) { width: 140px; }
+.event-table th:nth-child(3) { width: 90px; }
+.event-table th:nth-child(5) { width: 220px; }
 .coverage-metrics { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
 .coverage-metrics > div { min-width: 0; padding: 11px; border-right: 1px solid var(--soft-line); }
 .coverage-metrics > div:last-child { border-right: 0; }

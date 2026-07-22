@@ -1667,6 +1667,20 @@ class Workbench:
         observations = [row_dict(row) for row in observation_rows]
         interference_events = [row_dict(row) for row in interference_rows]
         evaluations = [row_dict(row) for row in evaluation_rows]
+        if readiness and listing:
+            current_baselines = [
+                item
+                for item in observations
+                if item["phase"] == "before"
+                and item["listing_version_id"] == listing["listing_version_id"]
+            ]
+            readiness.setdefault("metrics", {})["baseline_periods"] = len(current_baselines)
+            if interference_events:
+                readiness["evaluation_warnings"] = [
+                    item
+                    for item in readiness.get("evaluation_warnings", [])
+                    if item.get("code") != "event_timeline_empty"
+                ]
         return {
             "project_id": project_id,
             "listing_version": listing,
@@ -2039,6 +2053,71 @@ class Workbench:
                 (release_id, project_id, contract_id, asset_id, contract["slot_key"], published_at, json_dump(release_detail), now, now),
             )
             self.event(conn, "release", release_id, "optimization.release_recorded", actor, {"published_at": published_at})
+        return self.get_optimization_workspace(project_id)
+
+    def add_optimization_baseline_observation(
+        self,
+        project_id: str,
+        payload: dict[str, Any],
+        actor: str = "codex",
+    ) -> dict[str, Any]:
+        observation = normalize_observation(payload, "before")
+        now = iso()
+        with self.connect() as conn:
+            self._require_optimize_project(conn, project_id)
+            listing = conn.execute(
+                "SELECT listing_version_id FROM listing_versions "
+                "WHERE project_id = ? AND status = 'current' ORDER BY version DESC LIMIT 1",
+                (project_id,),
+            ).fetchone()
+            if not listing:
+                raise WorkbenchError("import the current Listing snapshot before adding baseline observations")
+            existing = conn.execute(
+                "SELECT observation_id, metrics_json, note FROM performance_observations "
+                "WHERE project_id = ? AND listing_version_id = ? AND release_id IS NULL "
+                "AND phase = 'before' AND period_start = ? AND period_end = ? "
+                "AND source = ? AND source_class = ? LIMIT 1",
+                (
+                    project_id,
+                    listing["listing_version_id"],
+                    observation["period_start"],
+                    observation["period_end"],
+                    observation["source"],
+                    observation["source_class"],
+                ),
+            ).fetchone()
+            if existing:
+                if json.loads(existing["metrics_json"]) != observation["metrics"] or existing["note"] != observation["note"]:
+                    raise WorkbenchError(
+                        "baseline observation already exists for this period and source with different evidence"
+                    )
+            else:
+                observation_id = f"obs_{new_ulid()}"
+                conn.execute(
+                    "INSERT INTO performance_observations(observation_id, project_id, listing_version_id, release_id, "
+                    "phase, period_start, period_end, source, source_class, metrics_json, note, created_at) "
+                    "VALUES(?, ?, ?, NULL, 'before', ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        observation_id,
+                        project_id,
+                        listing["listing_version_id"],
+                        observation["period_start"],
+                        observation["period_end"],
+                        observation["source"],
+                        observation["source_class"],
+                        json_dump(observation["metrics"]),
+                        observation["note"],
+                        now,
+                    ),
+                )
+                self.event(
+                    conn,
+                    "observation",
+                    observation_id,
+                    "optimization.baseline_observation_added",
+                    actor,
+                    {"listing_version_id": listing["listing_version_id"]},
+                )
         return self.get_optimization_workspace(project_id)
 
     def add_optimization_observation(

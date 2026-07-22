@@ -402,6 +402,16 @@ def preflight_optimization_release(
 
 
 @mcp.tool()
+def add_optimization_baseline_observation(
+    project_id: str,
+    observation: dict[str, Any],
+    actor: str = "codex",
+) -> dict[str, Any]:
+    """Append an idempotent pre-release metric window without revising the Listing snapshot."""
+    return app.add_optimization_baseline_observation(project_id, observation, actor)
+
+
+@mcp.tool()
 def add_optimization_observation(
     project_id: str,
     release_id: str,
