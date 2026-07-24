@@ -117,30 +117,35 @@ def fetch_keyword_data(kw_config: dict) -> dict:
     print(f"\n  [{keyword}]")
 
     # 1. keyword_detail
-    detail = call_sorftime_tool(
+    # Sorftime 2026-07 接口改版：参数改下划线，返回体包 {"doc","data"}，字段改英文。
+    detail_resp = call_sorftime_tool(
         "keyword_detail",
-        {"keyword": keyword, "keywordSupportSite": "US"},
-    ) or {}
+        {"keyword": keyword, "keyword_support_site": "US"},
+    )
+    detail = detail_resp.get("data") if isinstance(detail_resp, dict) else None
+    if not isinstance(detail, dict):
+        detail = {}
     time.sleep(1)
 
     # 2. keyword_search_results（多页）
     products: list[dict] = []
     for page in range(1, SEARCH_RESULT_PAGES + 1):
-        page_data = call_sorftime_tool(
+        page_resp = call_sorftime_tool(
             "keyword_search_results",
-            {"keyword": keyword, "keywordSupportSite": "US", "page": page, "positionType": 1},
+            {"keyword": keyword, "keyword_support_site": "US", "page": page, "position_type": 1},
         )
+        page_data = page_resp.get("data") if isinstance(page_resp, dict) else None
         if not page_data or not isinstance(page_data, list):
             break
         for rank_offset, item in enumerate(page_data):
             products.append({
-                "asin": item.get("ASIN", ""),
+                "asin": item.get("asin", ""),
                 "rank": (page - 1) * 20 + rank_offset + 1,
-                "title": item.get("标题", ""),
-                "price": round((item.get("价格", 0) or 0) / 100, 2),
-                "monthly_sales": item.get("本产品月销量", 0) or 0,
-                "brand": item.get("品牌", ""),
-                "seller": item.get("卖家", ""),
+                "title": item.get("title", ""),
+                "price": round(item.get("price", 0) or 0, 2),   # 新接口 price 已是美元
+                "monthly_sales": item.get("monthly_sales_volume", 0) or 0,
+                "brand": item.get("brand", ""),
+                "seller": item.get("seller", ""),
             })
         print(f"    第{page}页: {len(page_data)} 条")
         time.sleep(1.5)
@@ -150,10 +155,10 @@ def fetch_keyword_data(kw_config: dict) -> dict:
     monthly = 0
     cpc = 0.0
     competition = ""
-    raw_weekly = detail.get("周搜索量", "0")
-    raw_monthly = detail.get("月搜索量", "0")
-    raw_cpc = detail.get("推荐cpc竞价", "0")
-    raw_comp = detail.get("搜索结果竞品数量", "")
+    raw_weekly = detail.get("weekly_search_volume", "0")
+    raw_monthly = detail.get("monthly_search_volume", "0")
+    raw_cpc = detail.get("recommended_cpc_bid", "0")
+    raw_comp = detail.get("search_result_competitor_count", "")
     try:
         weekly = int(str(raw_weekly).replace(",", "").replace("K", "000").split(".")[0])
     except Exception:
